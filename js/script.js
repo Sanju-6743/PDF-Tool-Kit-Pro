@@ -63,6 +63,11 @@
   let currentTool = null;
   let isDrawing = false;
   let startX, startY;
+  let addblankPdfFile = null;
+  let insertpagesPdfFile = null;
+  let insertpagesSecondPdfFile = null;
+  let splitbookmarksPdfFile = null;
+  let splitnPdfFile = null;
 
   // Shapes tool variables
   let shapesPdfFile = null;
@@ -133,22 +138,47 @@
   });
 
   // Sidebar tool switching
-  document.getElementById('toolNav').addEventListener('click', (ev)=>{
-    const btn = ev.target.closest('button');
-    if(!btn) return;
-    document.querySelectorAll('#toolNav button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const tool = btn.dataset.tool;
-    document.querySelectorAll('.tool').forEach(t=>t.classList.remove('active'));
-    document.getElementById(tool).classList.add('active');
+  document.querySelectorAll('#toolNav button').forEach(btn => {
+    console.log('Adding event listener to button:', btn.dataset.tool);
+    btn.addEventListener('click', (ev) => {
+      console.log('Button clicked:', btn.dataset.tool);
+      document.querySelectorAll('#toolNav button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tool = btn.dataset.tool;
+      document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+      document.getElementById(tool).classList.add('active');
+      console.log('Switched to tool:', tool);
 
-    anime({
-      targets: '#app .content',
-      translateY: [-8,0],
-      opacity: [0.6,1],
-      duration: 380,
-      easing: 'easeOutQuad'
+      // Close sidebar on mobile after selection
+      if(window.innerWidth <= 900){
+        document.querySelector('.sidebar').classList.remove('show');
+      }
+
+      anime({
+        targets: '#app .content',
+        translateY: [-8,0],
+        opacity: [0.6,1],
+        duration: 380,
+        easing: 'easeOutQuad'
+      });
     });
+  });
+
+  // Hamburger menu
+  document.getElementById('hamburger').addEventListener('click', ()=>{
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('show');
+  });
+
+  // Close sidebar when clicking outside on mobile
+  document.addEventListener('click', (e)=>{
+    if(window.innerWidth <= 900){
+      const sidebar = document.querySelector('.sidebar');
+      const hamburger = document.getElementById('hamburger');
+      if(!sidebar.contains(e.target) && e.target !== hamburger && !hamburger.contains(e.target)){
+        sidebar.classList.remove('show');
+      }
+    }
   });
 
   // Quick upload and global file input
@@ -716,6 +746,359 @@
     } catch(err){ hideOverlay(); toastError('Reorder failed: '+err.message); }
   }
 
+  // ---------- Duplicate Pages ----------
+  let duplicatePdfFile = null;
+  document.getElementById('duplicateChoose').addEventListener('click', ()=> document.getElementById('duplicateInput').click());
+  document.getElementById('duplicateInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) { duplicatePdfFile = f; Swal.fire('Loaded','PDF loaded for duplication','success'); }
+  });
+  document.getElementById('duplicateRun').addEventListener('click', ()=> duplicatePages());
+  document.getElementById('duplicateDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ duplicatePdfFile = f; Swal.fire('Loaded','PDF loaded for duplication','success'); } });
+
+  async function duplicatePages(){
+    if(!duplicatePdfFile) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
+    const pagesStr = document.getElementById('duplicatePages').value;
+    const count = parseInt(document.getElementById('duplicateCount').value) || 1;
+    const pagesToDuplicate = parsePages(pagesStr);
+    if(pagesToDuplicate.length === 0) { Swal.fire('No pages','Specify pages to duplicate','info'); return; }
+    try{
+      showOverlay('Duplicating pages...');
+      const arr = await duplicatePdfFile.arrayBuffer();
+      const pdfDoc = await PDFLib.PDFDocument.load(arr);
+      const newDoc = await PDFLib.PDFDocument.create();
+      const totalPages = pdfDoc.getPageCount();
+      for(let i=0; i<totalPages; i++){
+        const pageIndex = i;
+        const copied = await newDoc.copyPages(pdfDoc, [pageIndex]);
+        newDoc.addPage(copied[0]);
+        if(pagesToDuplicate.includes(i+1)){
+          for(let c=0; c<count; c++){
+            const copiedDup = await newDoc.copyPages(pdfDoc, [pageIndex]);
+            newDoc.addPage(copiedDup[0]);
+          }
+        }
+      }
+      const out = await newDoc.save();
+      saveAs(new Blob([out],{type:'application/pdf'}), 'duplicated.pdf');
+      hideOverlay(); toastSuccess('Duplicated PDF saved');
+    } catch(err){
+      hideOverlay(); toastError('Duplication failed: '+err.message);
+    }
+  }
+
+  // ---------- Add Blank Page ----------
+  document.getElementById('addblankChoose').addEventListener('click', ()=> document.getElementById('addblankInput').click());
+  document.getElementById('addblankInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) { addblankPdfFile = f; Swal.fire('Loaded','PDF loaded for adding blank page','success'); }
+  });
+  document.getElementById('addblankRun').addEventListener('click', ()=> addBlankPage());
+  document.getElementById('addblankDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ addblankPdfFile = f; Swal.fire('Loaded','PDF loaded for adding blank page','success'); } });
+
+  async function addBlankPage(){
+    if(!addblankPdfFile) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
+    const position = document.getElementById('addblankPosition').value;
+    const afterPage = parseInt(document.getElementById('addblankAfterPage').value) || 1;
+    try{
+      showOverlay('Adding blank page...');
+      const arr = await addblankPdfFile.arrayBuffer();
+      const pdfDoc = await PDFLib.PDFDocument.load(arr);
+      const newDoc = await PDFLib.PDFDocument.create();
+      const totalPages = pdfDoc.getPageCount();
+      let insertIndex = 0;
+      if(position === 'start') insertIndex = 0;
+      else if(position === 'end') insertIndex = totalPages;
+      else if(position === 'after') insertIndex = Math.min(afterPage, totalPages);
+      for(let i=0; i<totalPages; i++){
+        if(i === insertIndex){
+          // Add blank page
+          const blankPage = newDoc.addPage([595.28, 841.89]); // A4
+        }
+        const copied = await newDoc.copyPages(pdfDoc, [i]);
+        newDoc.addPage(copied[0]);
+      }
+      if(position === 'end'){
+        const blankPage = newDoc.addPage([595.28, 841.89]);
+      }
+      const out = await newDoc.save();
+      saveAs(new Blob([out],{type:'application/pdf'}), 'with_blank_page.pdf');
+      hideOverlay(); toastSuccess('Blank page added');
+    } catch(err){
+      hideOverlay(); toastError('Failed to add blank page: '+err.message);
+    }
+  }
+
+  // ---------- Insert Pages from Another PDF ----------
+  document.getElementById('insertpagesChoose').addEventListener('click', ()=> document.getElementById('insertpagesInput').click());
+  document.getElementById('insertpagesInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) { insertpagesPdfFile = f; Swal.fire('Loaded','Main PDF loaded','success'); }
+  });
+  document.getElementById('insertpagesChooseSecond').addEventListener('click', ()=> document.getElementById('insertpagesSecondInput').click());
+  document.getElementById('insertpagesSecondInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) { insertpagesSecondPdfFile = f; Swal.fire('Loaded','Second PDF loaded','success'); }
+  });
+  document.getElementById('insertpagesRun').addEventListener('click', ()=> insertPagesFromAnother());
+  document.getElementById('insertpagesDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ insertpagesPdfFile = f; Swal.fire('Loaded','Main PDF loaded','success'); } });
+  document.getElementById('insertpagesSecondDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ insertpagesSecondPdfFile = f; Swal.fire('Loaded','Second PDF loaded','success'); } });
+
+  async function insertPagesFromAnother(){
+    if(!insertpagesPdfFile || !insertpagesSecondPdfFile) { Swal.fire('No PDFs','Upload both main and second PDFs','info'); return; }
+    const pagesStr = document.getElementById('insertpagesList').value;
+    const position = document.getElementById('insertpagesPosition').value;
+    const afterPage = parseInt(document.getElementById('insertpagesAfterPage').value) || 1;
+    const pagesToInsert = parsePages(pagesStr);
+    if(pagesToInsert.length === 0) { Swal.fire('No pages','Specify pages to insert','info'); return; }
+    try{
+      showOverlay('Inserting pages...');
+      const arr1 = await insertpagesPdfFile.arrayBuffer();
+      const pdfDoc1 = await PDFLib.PDFDocument.load(arr1);
+      const arr2 = await insertpagesSecondPdfFile.arrayBuffer();
+      const pdfDoc2 = await PDFLib.PDFDocument.load(arr2);
+      const newDoc = await PDFLib.PDFDocument.create();
+      const totalPages1 = pdfDoc1.getPageCount();
+      let insertIndex = 0;
+      if(position === 'start') insertIndex = 0;
+      else if(position === 'end') insertIndex = totalPages1;
+      else if(position === 'after') insertIndex = Math.min(afterPage, totalPages1);
+      for(let i=0; i<totalPages1; i++){
+        if(i === insertIndex){
+          // Insert pages from second PDF
+          for(const p of pagesToInsert){
+            if(p > 0 && p <= pdfDoc2.getPageCount()){
+              const copied = await newDoc.copyPages(pdfDoc2, [p-1]);
+              newDoc.addPage(copied[0]);
+            }
+          }
+        }
+        const copied = await newDoc.copyPages(pdfDoc1, [i]);
+        newDoc.addPage(copied[0]);
+      }
+      if(position === 'end'){
+        for(const p of pagesToInsert){
+          if(p > 0 && p <= pdfDoc2.getPageCount()){
+            const copied = await newDoc.copyPages(pdfDoc2, [p-1]);
+            newDoc.addPage(copied[0]);
+          }
+        }
+      }
+      const out = await newDoc.save();
+      saveAs(new Blob([out],{type:'application/pdf'}), 'inserted_pages.pdf');
+      hideOverlay(); toastSuccess('Pages inserted');
+    } catch(err){
+      hideOverlay(); toastError('Failed to insert pages: '+err.message);
+    }
+  }
+
+  // ---------- Split by Bookmarks ----------
+  document.getElementById('splitbookmarksChoose').addEventListener('click', ()=> document.getElementById('splitbookmarksInput').click());
+  document.getElementById('splitbookmarksInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) await loadSplitBookmarksPdf(f);
+  });
+  document.getElementById('splitbookmarksRun').addEventListener('click', ()=> splitByBookmarks());
+  document.getElementById('splitbookmarksDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f) await loadSplitBookmarksPdf(f); });
+  document.getElementById('splitbookmarksZipBtn').addEventListener('click', ()=> downloadSplitBookmarksAsZip());
+
+  let splitBookmarksFiles = [];
+
+  async function flattenOutline(items, level = 0, pdfJsDoc){
+    const bookmarks = [];
+    for(const item of items){
+      const dest = item.dest;
+      let pageNum = 1;
+      if(dest && typeof dest === 'string'){
+        try{
+          const destArray = await pdfJsDoc.getDestination(dest);
+          if(destArray && destArray[0]){
+            const idx = await pdfJsDoc.getPageIndex(destArray[0]);
+            pageNum = idx + 1;
+          }
+        } catch(e){ pageNum = 1; }
+      } else if(dest && Array.isArray(dest) && dest[0]){
+        try{
+          const idx = await pdfJsDoc.getPageIndex(dest[0]);
+          pageNum = idx + 1;
+        } catch(e){ pageNum = 1; }
+      }
+      bookmarks.push({title: item.title, pageNum, level});
+      if(item.items){
+        const subBookmarks = await flattenOutline(item.items, level + 1, pdfJsDoc);
+        bookmarks.push(...subBookmarks);
+      }
+    }
+    return bookmarks;
+  }
+
+  async function loadSplitBookmarksPdf(file){
+    try{
+      showOverlay('Loading PDF and extracting bookmarks...');
+      splitbookmarksPdfFile = file;
+      const arr = await file.arrayBuffer();
+      const pdfJsDoc = await pdfjsLib.getDocument({data: arr}).promise;
+      const outline = await pdfJsDoc.getOutline();
+      const bookmarksContainer = document.getElementById('bookmarksContainer');
+      bookmarksContainer.innerHTML = '';
+      if(!outline || outline.length === 0){
+        bookmarksContainer.innerHTML = '<div class="muted">No bookmarks found in this PDF.</div>';
+        document.getElementById('bookmarksList').style.display = 'block';
+        document.getElementById('splitbookmarksDrop').style.display = 'none';
+        hideOverlay();
+        return;
+      }
+      // Flatten outline to get page numbers
+      const bookmarks = await flattenOutline(outline, 0, pdfJsDoc);
+      bookmarks.forEach((bm, idx) => {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '8px';
+        div.style.padding = '4px';
+        div.style.border = '1px solid var(--muted)';
+        div.style.borderRadius = '4px';
+        div.innerHTML = `
+          <input type="checkbox" id="bm${idx}" checked>
+          <label for="bm${idx}" style="flex:1; cursor:pointer;">${'  '.repeat(bm.level)}${bm.title} (Page ${bm.pageNum})</label>
+        `;
+        bookmarksContainer.appendChild(div);
+      });
+      document.getElementById('bookmarksList').style.display = 'block';
+      document.getElementById('splitbookmarksDrop').style.display = 'none';
+      hideOverlay();
+      toastSuccess('Bookmarks loaded — select which to split on');
+    } catch(err){
+      hideOverlay();
+      toastError('Failed to load bookmarks: '+err.message);
+    }
+  }
+
+  async function splitByBookmarks(){
+    if(!splitbookmarksPdfFile) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
+    const checkboxes = document.querySelectorAll('#bookmarksContainer input[type="checkbox"]:checked');
+    if(checkboxes.length === 0) { Swal.fire('No bookmarks selected','Select at least one bookmark','info'); return; }
+    try{
+      showOverlay('Splitting by bookmarks...');
+      const arr = await splitbookmarksPdfFile.arrayBuffer();
+      const pdfDoc = await PDFLib.PDFDocument.load(arr);
+      const totalPages = pdfDoc.getPageCount();
+      splitBookmarksFiles = [];
+      let startPage = 0;
+      for (let idx = 0; idx < checkboxes.length; idx++) {
+        const cb = checkboxes[idx];
+        const bmIdx = parseInt(cb.id.replace('bm',''));
+        // Assume bookmarks are in order, get pageNum from title or something, but for simplicity, split at top-level
+        // This is simplified; in real implementation, need to map properly
+        const pageNum = parseInt(cb.nextElementSibling.textContent.match(/Page (\d+)/)[1]);
+        if(pageNum > startPage + 1){
+          const endPage = pageNum - 1;
+          const newDoc = await PDFLib.PDFDocument.create();
+          const indices = Array.from({length: endPage - startPage}, (_, i) => startPage + i);
+          const copied = await newDoc.copyPages(pdfDoc, indices);
+          copied.forEach(p => newDoc.addPage(p));
+          const bytes = await newDoc.save();
+          const filename = `Split_Bookmark_${idx + 1}.pdf`;
+          splitBookmarksFiles.push({filename, bytes});
+          startPage = pageNum - 1;
+        }
+      }
+      // Last part
+      if(startPage < totalPages){
+        const newDoc = await PDFLib.PDFDocument.create();
+        const indices = Array.from({length: totalPages - startPage}, (_, i) => startPage + i);
+        const copied = await newDoc.copyPages(pdfDoc, indices);
+        copied.forEach(p => newDoc.addPage(p));
+        const bytes = await newDoc.save();
+        const filename = `Split_Bookmark_${checkboxes.length + 1}.pdf`;
+        splitBookmarksFiles.push({filename, bytes});
+      }
+      document.getElementById('splitbookmarksZipBtn').style.display = 'inline-block';
+      hideOverlay();
+      toastSuccess('PDF split by bookmarks — download as ZIP');
+    } catch(err){
+      hideOverlay();
+      toastError('Split failed: '+err.message);
+    }
+  }
+
+  async function downloadSplitBookmarksAsZip(){
+    if(splitBookmarksFiles.length === 0) { Swal.fire('No files','Split by bookmarks first','info'); return; }
+    try{
+      showOverlay('Creating ZIP file...');
+      const zip = new JSZip();
+      splitBookmarksFiles.forEach(file => {
+        zip.file(file.filename, file.bytes);
+      });
+      const content = await zip.generateAsync({type: 'blob'});
+      saveAs(content, 'split_by_bookmarks.zip');
+      hideOverlay();
+      toastSuccess('ZIP downloaded');
+    } catch(err){
+      hideOverlay();
+      toastError('ZIP creation failed: '+err.message);
+    }
+  }
+
+  // ---------- Split Every N Pages ----------
+  document.getElementById('splitnChoose').addEventListener('click', ()=> document.getElementById('splitnInput').click());
+  document.getElementById('splitnInput').addEventListener('change', async (e)=> {
+    const f = e.target.files[0];
+    if(f) { splitnPdfFile = f; Swal.fire('Loaded','PDF loaded for splitting','success'); }
+  });
+  document.getElementById('splitnRun').addEventListener('click', ()=> splitEveryNPages());
+  document.getElementById('splitnDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ splitnPdfFile = f; Swal.fire('Loaded','PDF loaded for splitting','success'); } });
+  document.getElementById('splitnZipBtn').addEventListener('click', ()=> downloadSplitNAsZip());
+
+  let splitNFiles = [];
+
+  async function splitEveryNPages(){
+    if(!splitnPdfFile) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
+    const n = parseInt(document.getElementById('splitnValue').value);
+    if(n < 1) { Swal.fire('Invalid N','N must be at least 1','info'); return; }
+    try{
+      showOverlay('Splitting every N pages...');
+      const arr = await splitnPdfFile.arrayBuffer();
+      const pdfDoc = await PDFLib.PDFDocument.load(arr);
+      const totalPages = pdfDoc.getPageCount();
+      splitNFiles = [];
+      for(let i=0; i<totalPages; i += n){
+        const end = Math.min(i + n, totalPages);
+        const newDoc = await PDFLib.PDFDocument.create();
+        const indices = Array.from({length: end - i}, (_, j) => i + j);
+        const copied = await newDoc.copyPages(pdfDoc, indices);
+        copied.forEach(p => newDoc.addPage(p));
+        const bytes = await newDoc.save();
+        const filename = `Split_${Math.floor(i/n) + 1}.pdf`;
+        splitNFiles.push({filename, bytes});
+      }
+      document.getElementById('splitnZipBtn').style.display = 'inline-block';
+      hideOverlay();
+      toastSuccess('PDF split every N pages — download as ZIP');
+    } catch(err){
+      hideOverlay();
+      toastError('Split failed: '+err.message);
+    }
+  }
+
+  async function downloadSplitNAsZip(){
+    if(splitNFiles.length === 0) { Swal.fire('No files','Split every N pages first','info'); return; }
+    try{
+      showOverlay('Creating ZIP file...');
+      const zip = new JSZip();
+      splitNFiles.forEach(file => {
+        zip.file(file.filename, file.bytes);
+      });
+      const content = await zip.generateAsync({type: 'blob'});
+      saveAs(content, 'split_every_n.zip');
+      hideOverlay();
+      toastSuccess('ZIP downloaded');
+    } catch(err){
+      hideOverlay();
+      toastError('ZIP creation failed: '+err.message);
+    }
+  }
+
   // ---------- Compress PDF (basic) ----------
   const compressInput = document.getElementById('compressInput');
   document.getElementById('compressChoose').addEventListener('click', ()=> compressInput.click());
@@ -1274,27 +1657,33 @@
     if(!ocrFile) { Swal.fire('No file','Upload a file for OCR','info'); return; }
     try{
       showOverlay('Running OCR...');
-      let imageElement;
+      let fullText = '';
       if(ocrFile.type.startsWith('image/')){
         const img = new Image();
         img.src = URL.createObjectURL(ocrFile);
         await new Promise(r => img.onload = r);
-        imageElement = img;
+        const result = await Tesseract.recognize(img, 'eng');
+        fullText = result.data.text;
       } else {
-        // For PDF, render first page
+        // For PDF, process all pages
         const arr = await ocrFile.arrayBuffer();
         const pdfJsDoc = await pdfjsLib.getDocument({data: arr}).promise;
-        const page = await pdfJsDoc.getPage(1);
-        const canvas = document.createElement('canvas');
-        const viewport = page.getViewport({scale: 2});
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
-        await page.render({canvasContext: ctx, viewport}).promise;
-        imageElement = canvas;
+        const numPages = pdfJsDoc.numPages;
+        for(let i=1; i<=numPages; i++){
+          loaderProgress.textContent = `Processing page ${i}/${numPages}`;
+          const page = await pdfJsDoc.getPage(i);
+          const canvas = document.createElement('canvas');
+          const viewport = page.getViewport({scale: 2});
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({canvasContext: ctx, viewport}).promise;
+          const result = await Tesseract.recognize(canvas, 'eng');
+          fullText += `--- Page ${i} ---\n${result.data.text}\n\n`;
+          await new Promise(r=>setTimeout(r,10)); // Allow UI updates
+        }
       }
-      const result = await Tesseract.recognize(imageElement, 'eng');
-      document.getElementById('ocrText').value = result.data.text;
+      document.getElementById('ocrText').value = fullText;
       hideOverlay(); toastSuccess('OCR completed');
     } catch(err){
       console.error('OCR error:', err);

@@ -68,6 +68,8 @@ html,body{height:100%; margin:0; font-family: 'Inter', 'Poppins', system-ui, -ap
   padding:18px; border-radius:var(--radius); background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); box-shadow:var(--shadow); height:calc(100vh - 124px); overflow:auto;
 }
 .nav{display:flex; flex-direction:column; gap:6px}
+.nav-group{margin-bottom:16px}
+.nav-title{font-size:12px; font-weight:700; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px}
 .nav button{display:flex; align-items:center; gap:12px; padding:10px; border-radius:10px; border:0; background:transparent; color:var(--muted); text-align:left; width:100%; cursor:pointer}
 .nav button.active{background:linear-gradient(90deg,var(--accent), #9aaeff); color:white; box-shadow: 0 8px 24px rgba(91,108,255,0.12)}
 
@@ -106,14 +108,26 @@ canvas#pdf-canvas{border-radius:8px; box-shadow: 0 8px 20px rgba(12,18,30,0.06);
 }
 .page-card{width:120px; padding:6px; border-radius:8px; background:var(--glass); text-align:center; cursor:grab}
 
+/* hamburger */
+.hamburger{display:none}
+
+/* drawer */
+.sidebar{position:relative; transform:translateX(0); transition:transform 0.3s ease}
+.sidebar.drawer{transform:translateX(-100%)}
+
 /* responsive */
 @media (max-width:900px){
   .app{grid-template-columns: 1fr; grid-template-rows:64px auto 1fr; padding:12px}
-  .sidebar{height:auto; order:2}
+  .sidebar{position:fixed; top:64px; left:0; width:260px; height:calc(100vh - 64px); z-index:1000; transform:translateX(-100%); transition:transform 0.3s ease}
+  .sidebar.show{transform:translateX(0)}
+  .hamburger{display:flex !important}
   .content{order:3; height:auto}
   .topbar{order:1}
   .processing-counters{gap:8px; font-size:12px}
   .counter{gap:2px}
+  .canvas-wrap{flex-direction:column}
+  .thumbs{justify-content:center}
+  .controls{flex-wrap:wrap; justify-content:center}
 }
 
 /* overlay */

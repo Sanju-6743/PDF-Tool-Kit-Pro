@@ -72,6 +72,7 @@
       </div>
 
       <div class="top-actions">
+        <button class="btn hamburger" id="hamburger" title="Menu"><i class="fa-solid fa-bars"></i></button>
         <div class="toggle" title="Theme toggle" id="themeToggle">
           <i class="fa-regular fa-sun"></i>
           <label style="font-size:13px">Light</label>
@@ -91,32 +92,55 @@
       </div>
 
       <nav class="nav" id="toolNav">
-        <button class="active" data-tool="viewer"><i class="fa-solid fa-eye"></i> Viewer</button>
-        <button data-tool="extract"><i class="fa-solid fa-file-lines"></i> Extract Text</button>
-        <button data-tool="merge"><i class="fa-solid fa-folder-plus"></i> Merge PDFs</button>
-        <button data-tool="split"><i class="fa-solid fa-cut"></i> Split PDF</button>
-        <button data-tool="rotate"><i class="fa-solid fa-rotate"></i> Rotate Pages</button>
-        <button data-tool="delete"><i class="fa-solid fa-trash"></i> Delete Pages</button>
-        <button data-tool="extractpages"><i class="fa-solid fa-file-export"></i> Extract Pages</button>
-        <button data-tool="pagenumbers"><i class="fa-solid fa-list-ol"></i> Add Page Numbers</button>
-        <button data-tool="customtext"><i class="fa-solid fa-pen"></i> Add Custom Text</button>
-        <button data-tool="annotate"><i class="fa-solid fa-highlighter"></i> Annotate</button>
-        <button data-tool="shapes"><i class="fa-solid fa-shapes"></i> Draw Shapes</button>
-        <button data-tool="fillforms"><i class="fa-solid fa-edit"></i> Fill Forms</button>
-        <button data-tool="metadata"><i class="fa-solid fa-info-circle"></i> Edit Metadata</button>
-        <button data-tool="password"><i class="fa-solid fa-lock"></i> Password Protect</button>
-        <button data-tool="unlock"><i class="fa-solid fa-unlock"></i> Unlock PDF</button>
-        <button data-tool="pdftoimages"><i class="fa-solid fa-image"></i> PDF → Images</button>
-        <button data-tool="extractimages"><i class="fa-solid fa-images"></i> Extract Images</button>
-        <button data-tool="ocr"><i class="fa-solid fa-search-plus"></i> OCR</button>
-        <button data-tool="signature"><i class="fa-solid fa-signature"></i> Add Signature</button>
-        <button data-tool="search"><i class="fa-solid fa-search"></i> Search PDF</button>
-        <button data-tool="chatbot"><i class="fa-solid fa-robot"></i> AI Chatbot</button>
-        <button data-tool="textpdf"><i class="fa-solid fa-file-arrow-down"></i> Create from Text</button>
-        <button data-tool="imagespdf"><i class="fa-solid fa-image"></i> Images → PDF</button>
-        <button data-tool="watermark"><i class="fa-solid fa-water"></i> Add Watermark</button>
-        <button data-tool="reorder"><i class="fa-solid fa-arrows-up-down-left-right"></i> Reorder Pages</button>
-        <button data-tool="compress"><i class="fa-solid fa-compress"></i> Compress PDF</button>
+        <div class="nav-group">
+          <div class="nav-title">Viewer</div>
+          <button class="active" data-tool="viewer"><i class="fa-solid fa-eye"></i> Viewer</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-title">Text Tools</div>
+          <button data-tool="extract"><i class="fa-solid fa-file-lines"></i> Extract Text</button>
+          <button data-tool="textpdf"><i class="fa-solid fa-file-alt"></i> Create from Text</button>
+          <button data-tool="search"><i class="fa-solid fa-search"></i> Search PDF</button>
+          <button data-tool="ocr"><i class="fa-solid fa-microscope"></i> OCR</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-title">📄 Page Management</div>
+          <button data-tool="split"><i class="fa-solid fa-scissors"></i> Split PDF</button>
+          <button data-tool="rotate"><i class="fa-solid fa-rotate-right"></i> Rotate Pages</button>
+          <button data-tool="delete"><i class="fa-solid fa-trash-can"></i> Delete Pages</button>
+          <button data-tool="extractpages"><i class="fa-solid fa-file-export"></i> Extract Pages</button>
+          <button data-tool="reorder"><i class="fa-solid fa-sort"></i> Reorder Pages</button>
+          <button data-tool="duplicate"><i class="fa-solid fa-clone"></i> Duplicate Pages</button>
+          <button data-tool="addblank"><i class="fa-solid fa-plus-circle"></i> Add Blank Page</button>
+          <button data-tool="insertpages"><i class="fa-solid fa-file-circle-plus"></i> Insert Pages</button>
+          <button data-tool="splitbookmarks"><i class="fa-solid fa-bookmark"></i> Split by Bookmarks</button>
+          <button data-tool="splitn"><i class="fa-solid fa-list-ol"></i> Split Every N Pages</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-title">Annotations</div>
+          <button data-tool="annotate"><i class="fa-solid fa-highlighter"></i> Annotate</button>
+          <button data-tool="shapes"><i class="fa-solid fa-draw-polygon"></i> Draw Shapes</button>
+          <button data-tool="fillforms"><i class="fa-solid fa-edit"></i> Fill Forms</button>
+          <button data-tool="signature"><i class="fa-solid fa-signature"></i> Add Signature</button>
+          <button data-tool="customtext"><i class="fa-solid fa-pen-nib"></i> Add Custom Text</button>
+          <button data-tool="pagenumbers"><i class="fa-solid fa-hashtag"></i> Add Page Numbers</button>
+          <button data-tool="watermark"><i class="fa-solid fa-tint"></i> Add Watermark</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-title">Images</div>
+          <button data-tool="imagespdf"><i class="fa-solid fa-images"></i> Images → PDF</button>
+          <button data-tool="pdftoimages"><i class="fa-solid fa-file-image"></i> PDF → Images</button>
+          <button data-tool="extractimages"><i class="fa-solid fa-image"></i> Extract Images</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-title">Other</div>
+          <button data-tool="merge"><i class="fa-solid fa-object-group"></i> Merge PDFs</button>
+          <button data-tool="compress"><i class="fa-solid fa-compress"></i> Compress PDF</button>
+          <button data-tool="metadata"><i class="fa-solid fa-info-circle"></i> Edit Metadata</button>
+          <button data-tool="password"><i class="fa-solid fa-lock"></i> Password Protect</button>
+          <button data-tool="unlock"><i class="fa-solid fa-unlock"></i> Unlock PDF</button>
+          <button data-tool="chatbot"><i class="fa-solid fa-robot"></i> AI Chatbot</button>
+        </div>
       </nav>
 
       <hr style="margin:12px 0;border:none;border-top:1px dashed rgba(0,0,0,0.06)">
@@ -307,6 +331,120 @@
 
         <div class="dropzone" id="reorderDrop">Drop PDF here</div>
         <div id="reorderGrid" class="grid" style="margin-top:10px"></div>
+      </section>
+
+      <!-- Duplicate Pages -->
+      <section class="tool" id="duplicate">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Duplicate Pages</strong><div class="muted">Select pages to duplicate and specify count</div></div>
+          <div>
+            <input id="duplicateInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="duplicateChoose"><i class="fa-solid fa-upload"></i> Upload</button>
+            <button class="btn primary" id="duplicateRun"><i class="fa-solid fa-copy"></i> Duplicate & Download</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label class="muted small">Pages to duplicate (e.g. 1,3-5)</label>
+          <input id="duplicatePages" placeholder="1,3-5" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+          <label class="muted small">Number of duplications</label>
+          <input id="duplicateCount" type="number" value="1" min="1" style="width:60px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+        </div>
+
+        <div class="dropzone" id="duplicateDrop">Drop PDF here</div>
+      </section>
+
+      <!-- Add Blank Page -->
+      <section class="tool" id="addblank">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Add Blank Page</strong><div class="muted">Insert a blank page at a chosen position</div></div>
+          <div>
+            <input id="addblankInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="addblankChoose"><i class="fa-solid fa-upload"></i> Upload</button>
+            <button class="btn primary" id="addblankRun"><i class="fa-solid fa-plus"></i> Add Blank Page</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label class="muted small">Position</label>
+          <select id="addblankPosition">
+            <option value="start">Start</option>
+            <option value="end">End</option>
+            <option value="after">After page</option>
+          </select>
+          <input id="addblankAfterPage" type="number" value="1" min="1" style="width:60px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)" placeholder="Page">
+        </div>
+
+        <div class="dropzone" id="addblankDrop">Drop PDF here</div>
+      </section>
+
+      <!-- Insert Pages from Another PDF -->
+      <section class="tool" id="insertpages">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Insert Pages from Another PDF</strong><div class="muted">Insert pages from a second PDF into the current one</div></div>
+          <div>
+            <input id="insertpagesInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="insertpagesChoose"><i class="fa-solid fa-upload"></i> Upload Main PDF</button>
+            <input id="insertpagesSecondInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="insertpagesChooseSecond"><i class="fa-solid fa-upload"></i> Upload Second PDF</button>
+            <button class="btn primary" id="insertpagesRun"><i class="fa-solid fa-file-circle-plus"></i> Insert Pages</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label class="muted small">Pages to insert (e.g. 1,3-5)</label>
+          <input id="insertpagesList" placeholder="1,3-5" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+          <label class="muted small">Insert at position</label>
+          <select id="insertpagesPosition">
+            <option value="start">Start</option>
+            <option value="end">End</option>
+            <option value="after">After page</option>
+          </select>
+          <input id="insertpagesAfterPage" type="number" value="1" min="1" style="width:60px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)" placeholder="Page">
+        </div>
+
+        <div class="dropzone" id="insertpagesDrop">Drop main PDF here</div>
+        <div class="dropzone" id="insertpagesSecondDrop" style="margin-top:8px">Drop second PDF here</div>
+      </section>
+
+      <!-- Split by Bookmarks -->
+      <section class="tool" id="splitbookmarks">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Split by Bookmarks</strong><div class="muted">Split PDF into multiple files based on top-level bookmarks</div></div>
+          <div>
+            <input id="splitbookmarksInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="splitbookmarksChoose"><i class="fa-solid fa-upload"></i> Upload</button>
+            <button class="btn primary" id="splitbookmarksRun"><i class="fa-solid fa-bookmark"></i> Split & Download</button>
+            <button class="btn" id="splitbookmarksZipBtn" style="display:none"><i class="fa-solid fa-file-zipper"></i> Download All as ZIP</button>
+          </div>
+        </div>
+
+        <div class="dropzone" id="splitbookmarksDrop">Drop PDF here</div>
+        <div id="bookmarksList" style="margin-top:10px; display:none;">
+          <div style="font-weight:600; margin-bottom:8px">Select bookmarks to split on:</div>
+          <div id="bookmarksContainer" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+      </section>
+
+      <!-- Split Every N Pages -->
+      <section class="tool" id="splitn">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Split Every N Pages</strong><div class="muted">Split PDF into separate files every N pages</div></div>
+          <div>
+            <input id="splitnInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="splitnChoose"><i class="fa-solid fa-upload"></i> Upload</button>
+            <button class="btn primary" id="splitnRun"><i class="fa-solid fa-list-ol"></i> Split & Download</button>
+            <button class="btn" id="splitnZipBtn" style="display:none"><i class="fa-solid fa-file-zipper"></i> Download All as ZIP</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label class="muted small">Split every</label>
+          <input id="splitnValue" type="number" value="10" min="1" style="width:60px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+          <label class="muted small">pages</label>
+        </div>
+
+        <div class="dropzone" id="splitnDrop">Drop PDF here</div>
       </section>
 
       <!-- Compress PDF -->
