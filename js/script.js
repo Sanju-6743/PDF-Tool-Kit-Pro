@@ -23,6 +23,8 @@
   let processingStartTime = null;
   let errorNotifications = [];
   let failedItems = [];
+  let enableSounds = localStorage.getItem('pdftk.sounds') === 'true' || false;
+  let processingStats = { startTime: null, endTime: null, filesProcessed: 0, errors: 0 };
 
   // Update counters display
   function updateCounters() {
@@ -39,6 +41,411 @@
     } else {
       badge.style.display = 'none';
     }
+  }
+
+  // Batch Processing System
+  class BatchProcessor {
+    constructor() {
+      this.queue = [];
+      this.isProcessing = false;
+      this.currentBatch = [];
+      this.batchSize = 10;
+      this.maxConcurrent = 3;
+      this.activeOperations = 0;
+      this.progress = { current: 0, total: 0, batch: 0, batchTotal: 0 };
+      this.onProgress = null;
+      this.onComplete = null;
+      this.onError = null;
+    }
+
+    addFiles(files, operation, options = {}) {
+      const fileArray = Array.from(files);
+      this.progress.total += fileArray.length;
+
+      // Split into batches
+      for (let i = 0; i < fileArray.length; i += this.batchSize) {
+        const batch = fileArray.slice(i, i + this.batchSize);
+        this.queue.push({
+          files: batch,
+          operation,
+          options,
+          batchIndex: Math.floor(i / this.batchSize),
+          totalBatches: Math.ceil(fileArray.length / this.batchSize)
+        });
+      }
+
+      if (!this.isProcessing) {
+        this.startProcessing();
+      }
+
+      return this.queue.length;
+    }
+
+    async startProcessing() {
+      if (this.isProcessing || this.queue.length === 0) return;
+
+      this.isProcessing = true;
+      processingStats.startTime = Date.now();
+      processingStats.filesProcessed = 0;
+      processingStats.errors = 0;
+
+      showOverlay('Starting batch processing...', 'Initializing...');
+      playSound('start');
+
+      while (this.queue.length > 0) {
+        const batch = this.queue.shift();
+        await this.processBatch(batch);
+      }
+
+      this.isProcessing = false;
+      processingStats.endTime = Date.now();
+
+      const duration = (processingStats.endTime - processingStats.startTime) / 1000;
+      const successRate = ((processingStats.filesProcessed - processingStats.errors) / processingStats.filesProcessed * 100).toFixed(1);
+
+      hideOverlay();
+      playSound('complete');
+
+      if (this.onComplete) {
+        this.onComplete({
+          filesProcessed: processingStats.filesProcessed,
+          errors: processingStats.errors,
+          duration,
+          successRate
+        });
+      }
+
+      showNotification(`Batch processing completed! Processed ${processingStats.filesProcessed} files in ${duration.toFixed(1)}s with ${successRate}% success rate.`, 'success');
+    }
+
+    async processBatch(batch) {
+      this.currentBatch = batch.files;
+      this.progress.batch = 0;
+      this.progress.batchTotal = batch.files.length;
+
+      showOverlay(`Processing batch ${batch.batchIndex + 1}/${batch.totalBatches}...`, `0/${batch.files.length} files`);
+
+      const promises = [];
+      for (let i = 0; i < Math.min(this.maxConcurrent, batch.files.length); i++) {
+        promises.push(this.processFileInBatch(batch, i));
+      }
+
+      await Promise.allSettled(promises);
+    }
+
+    async processFileInBatch(batch, fileIndex) {
+      if (fileIndex >= batch.files.length) return;
+
+      this.activeOperations++;
+      const file = batch.files[fileIndex];
+
+      try {
+        await this.executeOperation(file, batch.operation, batch.options);
+        processingStats.filesProcessed++;
+        this.progress.current++;
+        this.progress.batch++;
+
+        if (this.onProgress) {
+          this.onProgress(this.progress);
+        }
+
+        updateBatchProgress(batch, this.progress);
+
+      } catch (error) {
+        processingStats.errors++;
+        errorsCount++;
+        errorNotifications.push({
+          fileName: file.name,
+          errorMessage: error.message,
+          timestamp: new Date().toISOString()
+        });
+
+        if (this.onError) {
+          this.onError(file, error);
+        }
+
+        showNotification(`Error processing ${file.name}: ${error.message}`, 'error');
+        playSound('error');
+      }
+
+      this.activeOperations--;
+
+      // Process next file in batch if available
+      const nextIndex = fileIndex + this.maxConcurrent;
+      if (nextIndex < batch.files.length) {
+        await this.processFileInBatch(batch, nextIndex);
+      }
+    }
+
+    async executeOperation(file, operation, options) {
+      switch (operation) {
+        case 'merge':
+          return await this.mergeFile(file, options);
+        case 'compress':
+          return await this.compressFile(file, options);
+        case 'ocr':
+          return await this.ocrFile(file, options);
+        case 'convert':
+          return await this.convertFile(file, options);
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+    }
+
+    async mergeFile(file, options) {
+      // Validate file
+      if (!this.validateFile(file, ['application/pdf'])) {
+        throw new Error('Invalid file type. Only PDF files are supported for merging.');
+      }
+
+      if (file.size > 100 * 1024 * 1024) { // 100MB limit per file
+        throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Maximum 100MB per file.`);
+      }
+
+      // Add to merge list (this will be handled by the main merge function)
+      mergeFiles.push(file);
+      return { success: true, fileName: file.name };
+    }
+
+    async compressFile(file, options) {
+      if (!this.validateFile(file, ['application/pdf'])) {
+        throw new Error('Invalid file type. Only PDF files are supported for compression.');
+      }
+
+      const arrayBuffer = await this.readFileWithRetry(file);
+      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+
+      // Apply compression
+      const compressed = await this.compressPDF(pdfDoc, options.quality || 0.7);
+
+      return {
+        success: true,
+        fileName: file.name,
+        originalSize: file.size,
+        compressedSize: compressed.length,
+        data: compressed
+      };
+    }
+
+    async ocrFile(file, options) {
+      const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/bmp', 'image/tiff'];
+      if (!this.validateFile(file, supportedTypes)) {
+        throw new Error('Unsupported file type for OCR.');
+      }
+
+      const text = await this.performOCR(file);
+      return {
+        success: true,
+        fileName: file.name,
+        text: text,
+        length: text.length
+      };
+    }
+
+    async convertFile(file, options) {
+      // Handle various conversions
+      const result = await this.convertToFormat(file, options.format || 'pdf');
+      return {
+        success: true,
+        fileName: file.name,
+        data: result.data,
+        format: options.format
+      };
+    }
+
+    validateFile(file, allowedTypes) {
+      return allowedTypes.includes(file.type) || allowedTypes.some(type => file.name.toLowerCase().endsWith(type.split('/')[1]));
+    }
+
+    async readFileWithRetry(file, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await file.arrayBuffer();
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+
+    async compressPDF(pdfDoc, quality) {
+      // Implement PDF compression logic
+      const pages = pdfDoc.getPages();
+      for (const page of pages) {
+        // Compress images in the page
+        await this.compressPageImages(page, quality);
+      }
+      return await pdfDoc.save();
+    }
+
+    async compressPageImages(page, quality) {
+      // This would require more complex PDF manipulation
+      // For now, return as-is
+      return page;
+    }
+
+    async performOCR(file) {
+      if (file.type.startsWith('image/')) {
+        const image = new Image();
+        image.src = URL.createObjectURL(file);
+        await new Promise(resolve => image.onload = resolve);
+        const result = await Tesseract.recognize(image, 'eng');
+        return result.data.text;
+      } else {
+        // PDF OCR
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          const page = await pdfDoc.getPage(i);
+          const canvas = document.createElement('canvas');
+          const viewport = page.getViewport({ scale: 2 });
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const result = await Tesseract.recognize(canvas, 'eng');
+          fullText += `--- Page ${i} ---\n${result.data.text}\n\n`;
+        }
+
+        return fullText;
+      }
+    }
+
+    async convertToFormat(file, format) {
+      // Implement conversion logic based on format
+      // This is a placeholder for the conversion functionality
+      return { data: await file.arrayBuffer() };
+    }
+  }
+
+  // Global batch processor instance
+  const batchProcessor = new BatchProcessor();
+
+  // Notification System
+  function showNotification(message, type = 'info', duration = 5000) {
+    const notification = document.createElement('div');
+    notification.className = `popup ${type}`;
+    notification.innerHTML = `
+      <div class="popup-content">
+        <p id="popupMessage">${message}</p>
+        <button id="popupClose">×</button>
+      </div>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Show with animation
+    setTimeout(() => notification.classList.add('show'), 100);
+
+    // Auto-hide
+    const hideTimeout = setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => notification.remove(), 300);
+    }, duration);
+
+    // Close button
+    notification.querySelector('#popupClose').addEventListener('click', () => {
+      clearTimeout(hideTimeout);
+      notification.classList.remove('show');
+      setTimeout(() => notification.remove(), 300);
+    });
+  }
+
+  // Sound System
+  function playSound(type) {
+    if (!enableSounds) return;
+
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      switch (type) {
+        case 'start':
+          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1);
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.1);
+          break;
+        case 'complete':
+          oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.2);
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.2);
+          break;
+        case 'error':
+          oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+          oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.1);
+          gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.2);
+          break;
+      }
+    } catch (error) {
+      console.warn('Audio playback failed:', error);
+    }
+  }
+
+  // Progress Tracking
+  function updateBatchProgress(batch, progress) {
+    const progressPercent = Math.round((progress.current / progress.total) * 100);
+    const batchPercent = Math.round((progress.batch / progress.batchTotal) * 100);
+
+    showOverlay(
+      `Processing batch ${batch.batchIndex + 1}/${batch.totalBatches}...`,
+      `Overall: ${progress.current}/${progress.total} (${progressPercent}%) | Batch: ${progress.batch}/${progress.batchTotal} (${batchPercent}%)`
+    );
+  }
+
+  // Enhanced File Input with Batch Support
+  function createBatchFileInput(accept = 'application/pdf,image/*', multiple = true, operation = 'merge') {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = multiple;
+
+    input.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      // Check for unlimited file support
+      if (files.length > 1000) {
+        const proceed = await Swal.fire({
+          title: 'Large Batch Detected',
+          text: `${files.length} files selected. This will be processed in batches. Continue?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Continue',
+          cancelButtonText: 'Cancel'
+        });
+        if (!proceed.isConfirmed) return;
+      }
+
+      totalUploaded += files.length;
+      updateCounters();
+      storeRecentFiles(files);
+
+      // Add to batch processor
+      const queuePosition = batchProcessor.addFiles(files, operation);
+
+      showNotification(`${files.length} files added to processing queue (position: ${queuePosition})`, 'info');
+
+      // Reset input
+      input.value = '';
+    });
+
+    return input;
   }
 
   // New tool variables
@@ -106,7 +513,7 @@
   }
   function hideOverlay() { overlay.classList.remove('show'); loaderProgress.textContent=''; }
 
-  // Utility: show success/warn
+  // Utility: show success/warn with cute notifications
   function toastSuccess(msg){ Swal.fire({toast:true,position:'top-end',icon:'success',title:msg,showConfirmButton:false,timer:1800}) }
   function toastError(msg){ Swal.fire({toast:true,position:'top-end',icon:'error',title:msg,showConfirmButton:false,timer:2500}) }
   function confirmDialog(title,text){ return Swal.fire({title, text, icon:'question', showCancelButton:true}).then(r=>r.isConfirmed) }
@@ -137,6 +544,20 @@
     });
   });
 
+  // Sound toggle
+  const soundToggle = document.getElementById('soundToggle');
+  soundToggle.addEventListener('click', () => {
+    enableSounds = !enableSounds;
+    localStorage.setItem('pdftk.sounds', enableSounds);
+    soundToggle.querySelector('i').className = enableSounds ? 'fa-solid fa-volume-up' : 'fa-solid fa-volume-mute';
+    soundToggle.title = enableSounds ? 'Disable notification sounds' : 'Enable notification sounds';
+    showNotification(`Notification sounds ${enableSounds ? 'enabled' : 'disabled'}`, 'info');
+  });
+
+  // Initialize sound toggle state
+  soundToggle.querySelector('i').className = enableSounds ? 'fa-solid fa-volume-up' : 'fa-solid fa-volume-mute';
+  soundToggle.title = enableSounds ? 'Disable notification sounds' : 'Enable notification sounds';
+
   // Sidebar tool switching
   document.querySelectorAll('#toolNav button').forEach(btn => {
     console.log('Adding event listener to button:', btn.dataset.tool);
@@ -150,7 +571,7 @@
       console.log('Switched to tool:', tool);
 
       // Close sidebar on mobile after selection
-      if(window.innerWidth <= 900){
+      if(window.innerWidth <= 768){
         document.querySelector('.sidebar').classList.remove('show');
       }
 
@@ -172,7 +593,7 @@
 
   // Close sidebar when clicking outside on mobile
   document.addEventListener('click', (e)=>{
-    if(window.innerWidth <= 900){
+    if(window.innerWidth <= 768){
       const sidebar = document.querySelector('.sidebar');
       const hamburger = document.getElementById('hamburger');
       if(!sidebar.contains(e.target) && e.target !== hamburger && !hamburger.contains(e.target)){
@@ -322,12 +743,15 @@
     const sb = await f.arrayBuffer();
     currentPdfJsDoc = await pdfjsLib.getDocument({data: sb}).promise;
     Swal.fire('Loaded','PDF loaded for text extraction','success');
+    totalUploaded++;
+    updateCounters();
     storeRecentFiles([f]);
   });
 
   async function extractTextFromPdf(pdfjsDoc){
     try{
       showOverlay('Extracting text...', '');
+      processingStartTime = Date.now();
       let full = '';
       for(let i=1;i<=pdfjsDoc.numPages;i++){
         loaderProgress.textContent = `Page ${i} / ${pdfjsDoc.numPages}`;
@@ -338,11 +762,16 @@
         await new Promise(r=>setTimeout(r,10));
       }
       extractedText.value = full;
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
       toastSuccess('Text extracted');
     } catch(err){
       hideOverlay();
       toastError('Extraction failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -352,10 +781,27 @@
   let mergeFiles = [];
   document.getElementById('mergeChoose').addEventListener('click', ()=> mergeInput.click());
   mergeInput.addEventListener('change', (e)=> {
-    mergeFiles = [...e.target.files];
-    totalUploaded += mergeFiles.length;
+    const files = [...e.target.files];
+    if (files.length === 0) return;
+
+    // Reset merge files for new batch
+    mergeFiles = [];
+
+    // Use batch processor for unlimited file support
+    batchProcessor.onComplete = (results) => {
+      showNotification(`Merge batch completed! ${results.filesProcessed} files processed in ${results.duration.toFixed(1)}s`, 'success');
+      // Now run the actual merge with all collected files
+      renderMergeList(); // Update UI with collected files
+      mergePdfs();
+    };
+    batchProcessor.onError = (file, error) => {
+      showNotification(`Failed to prepare ${file.name} for merge: ${error.message}`, 'error');
+    };
+
+    batchProcessor.addFiles(files, 'merge');
+    totalUploaded += files.length;
     updateCounters();
-    renderMergeList();
+    // Don't set mergeFiles here - let batch processor collect them
   });
   document.getElementById('mergeRun').addEventListener('click', ()=> mergePdfs());
   document.getElementById('downloadFailedZip').addEventListener('click', async ()=> {
@@ -415,44 +861,96 @@
 
   async function mergePdfs(){
     if(mergeFiles.length<2) { Swal.fire('Need at least 2 PDFs','Choose two or more PDFs to merge.','warning'); return; }
+
+    // Check for large files and warn user
+    const largeFiles = mergeFiles.filter(f => f.size > 50 * 1024 * 1024); // 50MB threshold
+    if(largeFiles.length > 0){
+      const proceed = await Swal.fire({
+        title: 'Large Files Detected',
+        text: `${largeFiles.length} file(s) are larger than 50MB. This may cause memory issues. Continue?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Continue',
+        cancelButtonText: 'Cancel'
+      });
+      if(!proceed.isConfirmed) return;
+    }
+
     try{
       showOverlay('Merging PDFs...');
       const mergedPdf = await PDFLib.PDFDocument.create();
       failedItems = [];
+      let totalPagesProcessed = 0;
+
       for(let i=0;i<mergeFiles.length;i++){
         loaderProgress.textContent = `Processing ${i+1}/${mergeFiles.length}: ${mergeFiles[i].name}`;
         try{
-          const arr = await mergeFiles[i].arrayBuffer();
+          // Add memory management: process files one at a time
+          let arr;
+          try{
+            arr = await mergeFiles[i].arrayBuffer();
+          } catch(memErr){
+            if(memErr.message.includes('Array buffer allocation failed') || memErr.name === 'RangeError'){
+              throw new Error(`File too large to process: ${mergeFiles[i].name} (${(mergeFiles[i].size/1024/1024).toFixed(1)}MB). Try splitting large PDFs first.`);
+            }
+            throw memErr;
+          }
+
           const donor = await PDFLib.PDFDocument.load(arr);
           const pageIndices = donor.getPageIndices();
+
+          // Check if adding this file would exceed reasonable limits
+          if(totalPagesProcessed + pageIndices.length > 1000){
+            throw new Error(`Too many pages (${totalPagesProcessed + pageIndices.length}). Maximum 1000 pages supported.`);
+          }
+
           for(let j=0; j<pageIndices.length; j++){
             try{
               const copied = await mergedPdf.copyPages(donor, [pageIndices[j]]);
               copied.forEach(p => mergedPdf.addPage(p));
+              totalPagesProcessed++;
             } catch(pageErr){
               errorsCount++;
               errorNotifications.push({fileName: mergeFiles[i].name, pageNumber: j+1, errorMessage: pageErr.message});
               // Create single page PDF for failed page
-              const singlePdf = await PDFLib.PDFDocument.create();
-              const copiedPage = await singlePdf.copyPages(donor, [pageIndices[j]]);
-              copiedPage.forEach(p => singlePdf.addPage(p));
-              const bytes = await singlePdf.save();
-              failedItems.push({name: `${mergeFiles[i].name}_page_${j+1}.pdf`, blob: new Blob([bytes], {type:'application/pdf'})});
+              try{
+                const singlePdf = await PDFLib.PDFDocument.create();
+                const copiedPage = await singlePdf.copyPages(donor, [pageIndices[j]]);
+                copiedPage.forEach(p => singlePdf.addPage(p));
+                const bytes = await singlePdf.save();
+                failedItems.push({name: `${mergeFiles[i].name}_page_${j+1}.pdf`, blob: new Blob([bytes], {type:'application/pdf'})});
+              } catch(singleErr){
+                console.error('Failed to create single page PDF:', singleErr);
+              }
               updateCounters();
             }
           }
           totalProcessed++; // per file loaded successfully
+
+          // Force garbage collection hint and small delay
+          arr = null;
+          await new Promise(r=>setTimeout(r,50));
+
         } catch(fileErr){
           errorsCount++;
           errorNotifications.push({fileName: mergeFiles[i].name, errorMessage: fileErr.message});
           updateCounters();
+          console.error('File processing error:', fileErr);
         }
-        await new Promise(r=>setTimeout(r,20));
       }
+
       if(mergedPdf.getPageCount() > 0){
-        const out = await mergedPdf.save();
-        saveAs(new Blob([out],{type:'application/pdf'}), 'merged.pdf');
-        toastSuccess('Merged PDF saved');
+        try{
+          const out = await mergedPdf.save();
+          saveAs(new Blob([out],{type:'application/pdf'}), 'merged.pdf');
+          toastSuccess(`Merged PDF saved (${mergedPdf.getPageCount()} pages)`);
+        } catch(saveErr){
+          if(saveErr.message.includes('Array buffer allocation failed') || saveErr.name === 'RangeError'){
+            toastError('Merged PDF too large to save. Try merging fewer files or smaller PDFs.');
+          } else {
+            toastError('Failed to save merged PDF: ' + saveErr.message);
+          }
+        }
       } else {
         toastError('No pages could be merged');
       }
@@ -461,7 +959,13 @@
       }
       hideOverlay();
     } catch(err){
-      hideOverlay(); toastError('Merge failed: '+err.message);
+      hideOverlay();
+      if(err.message.includes('Array buffer allocation failed') || err.name === 'RangeError'){
+        toastError('Memory allocation failed. Try processing fewer or smaller files.');
+      } else {
+        toastError('Merge failed: '+err.message);
+      }
+      console.error('Merge error:', err);
     }
   }
 
@@ -535,6 +1039,7 @@
     const content = document.getElementById('textToPdf').value.trim();
     if(!content) { toastError('Enter some text first'); return; }
     showOverlay('Generating PDF from text...');
+    processingStartTime = Date.now();
     try{
       const doc = await PDFLib.PDFDocument.create();
       const page = doc.addPage([595.28, 841.89]); // A4
@@ -557,9 +1062,14 @@
       }
       const bytes = await doc.save();
       saveAs(new Blob([bytes],{type:'application/pdf'}), (title || 'document') + '.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('PDF created');
     } catch(err){
       hideOverlay(); toastError('Creation failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   });
 
@@ -589,6 +1099,8 @@
   function handleImages(files){
     const imgFiles = files.filter(f=>f.type.startsWith('image/'));
     for(const f of imgFiles) imagesList.push(f);
+    totalUploaded += imgFiles.length;
+    updateCounters();
     renderImagesGrid();
   }
 
@@ -615,6 +1127,7 @@
     if(imagesList.length===0){ toastError('Add images first'); return; }
     try{
       showOverlay('Creating PDF from images...');
+      processingStartTime = Date.now();
       const doc = await PDFLib.PDFDocument.create();
       for(let i=0;i<imagesList.length;i++){
         loaderProgress.textContent = `Processing image ${i+1}/${imagesList.length}`;
@@ -629,8 +1142,11 @@
       }
       const bytes = await doc.save();
       saveAs(new Blob([bytes],{type:'application/pdf'}), 'images.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('PDF created from images');
-    } catch(err){ hideOverlay(); toastError('Creation from images failed: '+err.message); }
+    } catch(err){ hideOverlay(); toastError('Creation from images failed: '+err.message); errorsCount++; updateCounters(); }
   }
 
   // ---------- Watermark ----------
@@ -638,7 +1154,7 @@
   document.getElementById('wmChoose').addEventListener('click', ()=> wmInput.click());
   wmInput.addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) { currentPdfBytes = new Uint8Array(await f.arrayBuffer()); Swal.fire('Loaded','PDF loaded for watermark','success'); }
+    if(f) { currentPdfBytes = new Uint8Array(await f.arrayBuffer()); totalUploaded++; updateCounters(); Swal.fire('Loaded','PDF loaded for watermark','success'); }
   });
   document.getElementById('wmRun').addEventListener('click', ()=> addWatermark());
   document.getElementById('wmDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ currentPdfBytes = new Uint8Array(await f.arrayBuffer()); Swal.fire('Loaded','PDF loaded for watermark','success'); } });
@@ -650,6 +1166,7 @@
     const opacity = Number(document.getElementById('wmOpacity').value) || 0.25;
     try{
       showOverlay('Adding watermark...');
+      processingStartTime = Date.now();
       const pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes);
       const helv = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
       const pages = pdfDoc.getPages();
@@ -670,8 +1187,11 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'watermarked.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Watermark added');
-    } catch(err){ hideOverlay(); toastError('Watermarking failed: '+err.message); }
+    } catch(err){ hideOverlay(); toastError('Watermarking failed: '+err.message); errorsCount++; updateCounters(); }
   }
 
   // ---------- Reorder Pages ----------
@@ -680,7 +1200,7 @@
   document.getElementById('reorderChoose').addEventListener('click', ()=> reorderInput.click());
   reorderInput.addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) await loadReorderFile(f);
+    if(f) { totalUploaded++; updateCounters(); await loadReorderFile(f); }
   });
   document.getElementById('reorderRun').addEventListener('click', ()=> exportReorderedPdf());
   document.getElementById('reorderDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f) await loadReorderFile(f); });
@@ -732,6 +1252,7 @@
     if(!reorderPdfBytes) { Swal.fire('No PDF','Upload a PDF to reorder','info'); return; }
     try{
       showOverlay('Generating reordered PDF...');
+      processingStartTime = Date.now();
       const original = await PDFLib.PDFDocument.load(reorderPdfBytes);
       const outDoc = await PDFLib.PDFDocument.create();
       // get current order from DOM
@@ -742,8 +1263,11 @@
       copied.forEach(p => outDoc.addPage(p));
       const out = await outDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'reordered.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Reordered PDF saved');
-    } catch(err){ hideOverlay(); toastError('Reorder failed: '+err.message); }
+    } catch(err){ hideOverlay(); toastError('Reorder failed: '+err.message); errorsCount++; updateCounters(); }
   }
 
   // ---------- Duplicate Pages ----------
@@ -751,7 +1275,7 @@
   document.getElementById('duplicateChoose').addEventListener('click', ()=> document.getElementById('duplicateInput').click());
   document.getElementById('duplicateInput').addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) { duplicatePdfFile = f; Swal.fire('Loaded','PDF loaded for duplication','success'); }
+    if(f) { duplicatePdfFile = f; totalUploaded++; updateCounters(); Swal.fire('Loaded','PDF loaded for duplication','success'); }
   });
   document.getElementById('duplicateRun').addEventListener('click', ()=> duplicatePages());
   document.getElementById('duplicateDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ duplicatePdfFile = f; Swal.fire('Loaded','PDF loaded for duplication','success'); } });
@@ -764,6 +1288,7 @@
     if(pagesToDuplicate.length === 0) { Swal.fire('No pages','Specify pages to duplicate','info'); return; }
     try{
       showOverlay('Duplicating pages...');
+      processingStartTime = Date.now();
       const arr = await duplicatePdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const newDoc = await PDFLib.PDFDocument.create();
@@ -781,9 +1306,14 @@
       }
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'duplicated.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Duplicated PDF saved');
     } catch(err){
       hideOverlay(); toastError('Duplication failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -802,6 +1332,7 @@
     const afterPage = parseInt(document.getElementById('addblankAfterPage').value) || 1;
     try{
       showOverlay('Adding blank page...');
+      processingStartTime = Date.now();
       const arr = await addblankPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const newDoc = await PDFLib.PDFDocument.create();
@@ -823,9 +1354,14 @@
       }
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'with_blank_page.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Blank page added');
     } catch(err){
       hideOverlay(); toastError('Failed to add blank page: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -853,6 +1389,7 @@
     if(pagesToInsert.length === 0) { Swal.fire('No pages','Specify pages to insert','info'); return; }
     try{
       showOverlay('Inserting pages...');
+      processingStartTime = Date.now();
       const arr1 = await insertpagesPdfFile.arrayBuffer();
       const pdfDoc1 = await PDFLib.PDFDocument.load(arr1);
       const arr2 = await insertpagesSecondPdfFile.arrayBuffer();
@@ -886,9 +1423,14 @@
       }
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'inserted_pages.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Pages inserted');
     } catch(err){
       hideOverlay(); toastError('Failed to insert pages: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -980,6 +1522,7 @@
     if(checkboxes.length === 0) { Swal.fire('No bookmarks selected','Select at least one bookmark','info'); return; }
     try{
       showOverlay('Splitting by bookmarks...');
+      processingStartTime = Date.now();
       const arr = await splitbookmarksPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const totalPages = pdfDoc.getPageCount();
@@ -1014,11 +1557,16 @@
         splitBookmarksFiles.push({filename, bytes});
       }
       document.getElementById('splitbookmarksZipBtn').style.display = 'inline-block';
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
       toastSuccess('PDF split by bookmarks — download as ZIP');
     } catch(err){
       hideOverlay();
       toastError('Split failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1044,7 +1592,7 @@
   document.getElementById('splitnChoose').addEventListener('click', ()=> document.getElementById('splitnInput').click());
   document.getElementById('splitnInput').addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) { splitnPdfFile = f; Swal.fire('Loaded','PDF loaded for splitting','success'); }
+    if(f) { splitnPdfFile = f; totalUploaded++; updateCounters(); Swal.fire('Loaded','PDF loaded for splitting','success'); }
   });
   document.getElementById('splitnRun').addEventListener('click', ()=> splitEveryNPages());
   document.getElementById('splitnDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ splitnPdfFile = f; Swal.fire('Loaded','PDF loaded for splitting','success'); } });
@@ -1058,6 +1606,7 @@
     if(n < 1) { Swal.fire('Invalid N','N must be at least 1','info'); return; }
     try{
       showOverlay('Splitting every N pages...');
+      processingStartTime = Date.now();
       const arr = await splitnPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const totalPages = pdfDoc.getPageCount();
@@ -1073,11 +1622,16 @@
         splitNFiles.push({filename, bytes});
       }
       document.getElementById('splitnZipBtn').style.display = 'inline-block';
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
       toastSuccess('PDF split every N pages — download as ZIP');
     } catch(err){
       hideOverlay();
       toastError('Split failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1104,7 +1658,7 @@
   document.getElementById('compressChoose').addEventListener('click', ()=> compressInput.click());
   compressInput.addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) { compressPdfFile = f; Swal.fire('Loaded','PDF loaded for compression','success'); }
+    if(f) { compressPdfFile = f; totalUploaded++; updateCounters(); Swal.fire('Loaded','PDF loaded for compression','success'); }
   });
   document.getElementById('compressRun').addEventListener('click', ()=> compressPdf());
   document.getElementById('compressScale').addEventListener('input', (e)=> document.getElementById('compressVal').textContent = e.target.value);
@@ -1115,7 +1669,7 @@
   document.getElementById('rotateChoose').addEventListener('click', ()=> document.getElementById('rotateInput').click());
   document.getElementById('rotateInput').addEventListener('change', async (e)=> {
     const f = e.target.files[0];
-    if(f) { rotatePdfFile = f; Swal.fire('Loaded','PDF loaded for rotation','success'); }
+    if(f) { rotatePdfFile = f; totalUploaded++; updateCounters(); Swal.fire('Loaded','PDF loaded for rotation','success'); }
   });
   document.getElementById('rotateRun').addEventListener('click', ()=> rotatePages());
   document.getElementById('rotateDrop').addEventListener('drop', async (ev)=> { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if(f){ rotatePdfFile = f; Swal.fire('Loaded','PDF loaded for rotation','success'); } });
@@ -1357,6 +1911,7 @@
     const scale = Number(document.getElementById('compressScale').value);
     try{
       showOverlay('Compressing PDF (downscaling images)...');
+      processingStartTime = Date.now();
       const arr = await compressPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const pages = pdfDoc.getPages();
@@ -1378,8 +1933,11 @@
       }
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'compressed.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Compressed PDF saved — note: frontend compression limits apply');
-    } catch(err){ hideOverlay(); toastError('Compression failed: '+err.message); console.error(err); }
+    } catch(err){ hideOverlay(); toastError('Compression failed: '+err.message); errorsCount++; updateCounters(); console.error(err); }
   }
 
   function dataURLToArrayBuffer(dataURL){
@@ -1417,6 +1975,7 @@
     if(pages.length === 0) { Swal.fire('No pages','Specify pages to rotate','info'); return; }
     try{
       showOverlay('Rotating pages...');
+      processingStartTime = Date.now();
       const arr = await rotatePdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const totalPages = pdfDoc.getPageCount();
@@ -1428,9 +1987,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'rotated.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Rotated PDF saved');
     } catch(err){
       hideOverlay(); toastError('Rotation failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1442,6 +2006,7 @@
     if(pagesToDelete.length === 0) { Swal.fire('No pages','Specify pages to delete','info'); return; }
     try{
       showOverlay('Deleting pages...');
+      processingStartTime = Date.now();
       const arr = await deletePdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const totalPages = pdfDoc.getPageCount();
@@ -1454,9 +2019,14 @@
       copied.forEach(p => newDoc.addPage(p));
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'deleted_pages.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Pages deleted, PDF saved');
     } catch(err){
       hideOverlay(); toastError('Deletion failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1468,6 +2038,7 @@
     if(pagesToExtract.length === 0) { Swal.fire('No pages','Specify pages to extract','info'); return; }
     try{
       showOverlay('Extracting pages...');
+      processingStartTime = Date.now();
       const arr = await extractPagesPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const indices = pagesToExtract.map(p => p-1).filter(i => i >= 0 && i < pdfDoc.getPageCount());
@@ -1476,9 +2047,14 @@
       copied.forEach(p => newDoc.addPage(p));
       const out = await newDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'extracted_pages.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Pages extracted, PDF saved');
     } catch(err){
       hideOverlay(); toastError('Extraction failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1489,6 +2065,7 @@
     const fontSize = Number(document.getElementById('pageNumbersSize').value);
     try{
       showOverlay('Adding page numbers...');
+      processingStartTime = Date.now();
       const arr = await pageNumbersPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const pages = pdfDoc.getPages();
@@ -1532,9 +2109,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'numbered.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Page numbers added');
     } catch(err){
       hideOverlay(); toastError('Adding page numbers failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1548,6 +2130,7 @@
     if(!text) { Swal.fire('No text','Enter text to add','info'); return; }
     try{
       showOverlay('Adding custom text...');
+      processingStartTime = Date.now();
       const arr = await customTextPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const pages = pdfDoc.getPages();
@@ -1558,9 +2141,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'custom_text.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Custom text added');
     } catch(err){
       hideOverlay(); toastError('Adding text failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1572,6 +2160,7 @@
     const subject = document.getElementById('metaSubject').value;
     try{
       showOverlay('Updating metadata...');
+      processingStartTime = Date.now();
       const arr = await metadataPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       pdfDoc.setTitle(title);
@@ -1579,9 +2168,14 @@
       pdfDoc.setSubject(subject);
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'updated_metadata.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Metadata updated');
     } catch(err){
       hideOverlay(); toastError('Metadata update failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1592,13 +2186,19 @@
     if(!password) { Swal.fire('No password','Enter a password','info'); return; }
     try{
       showOverlay('Adding password protection...');
+      processingStartTime = Date.now();
       const arr = await passwordPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const out = await pdfDoc.save({userPassword: password});
       saveAs(new Blob([out],{type:'application/pdf'}), 'protected.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Password protection added');
     } catch(err){
       hideOverlay(); toastError('Password protection failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1609,13 +2209,19 @@
     if(!password) { Swal.fire('No password','Enter the password','info'); return; }
     try{
       showOverlay('Unlocking PDF...');
+      processingStartTime = Date.now();
       const arr = await unlockPdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr, {password});
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'unlocked.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('PDF unlocked');
     } catch(err){
       hideOverlay(); toastError('Unlock failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1626,6 +2232,7 @@
     const dpi = Number(document.getElementById('imageDpi').value);
     try{
       showOverlay('Converting to images...');
+      processingStartTime = Date.now();
       const arr = await pdfToImagesPdfFile.arrayBuffer();
       const pdfJsDoc = await pdfjsLib.getDocument({data: arr}).promise;
       for(let i=1; i<=pdfJsDoc.numPages; i++){
@@ -1646,9 +2253,14 @@
         link.click();
         await new Promise(r=>setTimeout(r,100));
       }
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Images downloaded');
     } catch(err){
       hideOverlay(); toastError('Conversion failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1657,6 +2269,7 @@
     if(!ocrFile) { Swal.fire('No file','Upload a file for OCR','info'); return; }
     try{
       showOverlay('Running OCR...');
+      processingStartTime = Date.now();
       let fullText = '';
       if(ocrFile.type.startsWith('image/')){
         const img = new Image();
@@ -1684,10 +2297,15 @@
         }
       }
       document.getElementById('ocrText').value = fullText;
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('OCR completed');
     } catch(err){
       console.error('OCR error:', err);
       hideOverlay(); toastError('OCR failed: ' + (err.message || 'Unknown error'));
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1699,6 +2317,7 @@
     if(!text) { Swal.fire('No signature','Enter signature text','info'); return; }
     try{
       showOverlay('Adding signature...');
+      processingStartTime = Date.now();
       const arr = await signaturePdfFile.arrayBuffer();
       const pdfDoc = await PDFLib.PDFDocument.load(arr);
       const pages = pdfDoc.getPages();
@@ -1710,9 +2329,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'signed.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Signature added');
     } catch(err){
       hideOverlay(); toastError('Signature failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1723,6 +2347,7 @@
     if(!term) { Swal.fire('No term','Enter search term','info'); return; }
     try{
       showOverlay('Searching PDF...');
+      processingStartTime = Date.now();
       const arr = await searchPdfFile.arrayBuffer();
       const pdfJsDoc = await pdfjsLib.getDocument({data: arr}).promise;
       const results = [];
@@ -1736,9 +2361,14 @@
       }
       const resultsDiv = document.getElementById('searchResults');
       resultsDiv.innerHTML = results.length ? results.map(r => `<div>${r}</div>`).join('') : 'No matches found';
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Search completed');
     } catch(err){
       hideOverlay(); toastError('Search failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -1859,6 +2489,7 @@
     if(!annotatePdfDoc) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
     try{
       showOverlay('Exporting annotated PDF...');
+      processingStartTime = Date.now();
       const pdfDoc = await PDFLib.PDFDocument.create();
       for(let i=1; i<=annotatePdfDoc.numPages; i++){
         const page = await annotatePdfDoc.getPage(i);
@@ -1905,9 +2536,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'annotated.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Annotated PDF exported');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -2009,6 +2645,7 @@
     if(!shapesPdfDoc) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
     try{
       showOverlay('Exporting PDF with shapes...');
+      processingStartTime = Date.now();
       const pdfDoc = await PDFLib.PDFDocument.create();
       for(let i=1; i<=shapesPdfDoc.numPages; i++){
         const page = await shapesPdfDoc.getPage(i);
@@ -2062,9 +2699,14 @@
       }
       const out = await pdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'shaped.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('PDF with shapes exported');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -2141,6 +2783,7 @@
     if(!fillFormsPdfDoc) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
     try{
       showOverlay('Filling form and exporting...');
+      processingStartTime = Date.now();
       const form = fillFormsPdfDoc.getForm();
       formFieldsData.forEach(data => {
         if(data.value !== undefined){
@@ -2156,9 +2799,14 @@
       });
       const out = await fillFormsPdfDoc.save();
       saveAs(new Blob([out],{type:'application/pdf'}), 'filled_form.pdf');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay(); toastSuccess('Filled PDF exported');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -2182,6 +2830,7 @@
     if(!extractImagesPdfDoc) { Swal.fire('No PDF','Upload a PDF first','info'); return; }
     try{
       showOverlay('Extracting images...');
+      processingStartTime = Date.now();
       extractedImages = [];
       const grid = document.getElementById('extractedImagesGrid');
       grid.innerHTML = '';
@@ -2236,11 +2885,16 @@
       if(extractedImages.length > 0){
         document.getElementById('downloadImagesZipBtn').style.display = 'inline-block';
       }
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
       toastSuccess('Images extracted');
     } catch(err){
       hideOverlay();
       toastError('Extraction failed: '+err.message);
+      errorsCount++;
+      updateCounters();
     }
   }
 
@@ -2321,14 +2975,28 @@
     if(!message) return;
     addMessage('You', message);
     input.value = '';
-    showOverlay('Thinking...');
+    showOverlay('Processing...');
+
     try{
-      const style = document.getElementById('summaryStyle').value;
-      const prompt = `Based on the document, ${message}. Provide a ${style} response.`;
-      const response = await callGeminiAPI(prompt);
-      addMessage('AI', response);
-      currentSummary = response;
-      document.getElementById('chatbotDownloadBtn').style.display = 'inline-block';
+      // Check if message contains a command
+      const commandResult = await processCommand(message);
+      if(commandResult){
+        addMessage('AI', commandResult);
+        hideOverlay();
+        return;
+      }
+
+      // If no command matched, treat as question about document
+      if(chatbotFile){
+        const style = document.getElementById('summaryStyle').value;
+        const prompt = `Based on the document, ${message}. Provide a ${style} response.`;
+        const response = await callGeminiAPI(prompt);
+        addMessage('AI', response);
+        currentSummary = response;
+        document.getElementById('chatbotDownloadBtn').style.display = 'inline-block';
+      } else {
+        addMessage('AI', 'Please upload a document first to ask questions about it.');
+      }
       hideOverlay();
     } catch(err){
       hideOverlay();
@@ -2336,28 +3004,30 @@
     }
   }
 
-  // Call Gemini API
-  async function callGeminiAPI(prompt){
-    const apiKey = 'AIzaSyDvU17JfnBiIyZRW3fpFcxCXc254HyqZ4Y'; // User's API key - WARNING: Exposing API key in frontend is insecure!
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        contents: [{
-          parts: [{text: prompt}]
-        }]
-      })
-    });
-    const data = await response.json();
-    console.log('Gemini API response:', data);
-    if(data.error){
-      throw new Error(data.error.message);
+  // Process Commands
+  async function processCommand(message){
+    const lowerMessage = message.toLowerCase();
+
+    // Mock response for demo - in real implementation, this would call an AI API
+    if(lowerMessage.includes('summary') || lowerMessage.includes('summarize')){
+      return 'This is a mock summary response. In the full implementation, this would connect to an AI service like Gemini API.';
+    } else if(lowerMessage.includes('help') || lowerMessage.includes('commands')){
+      return 'Available commands: summary, help. You can also ask questions about the loaded document.';
     }
-    if(data.candidates && data.candidates[0]){
-      return data.candidates[0].content.parts[0].text;
+
+    return null; // No command matched, treat as regular question
+  }
+
+  // Call Gemini API (mock implementation)
+  async function callGeminiAPI(prompt){
+    // This is a mock implementation. In a real application, you would make an API call to Gemini
+    // For now, return a mock response based on the prompt
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+
+    if(prompt.toLowerCase().includes('summary') || prompt.toLowerCase().includes('summarize')){
+      return 'This is a mock AI summary. In the full implementation, this would be generated by the Gemini API based on the document content.';
     } else {
-      throw new Error('No response from AI');
+      return 'This is a mock AI response. In the full implementation, this would be generated by the Gemini API based on your question about the document.';
     }
   }
 
