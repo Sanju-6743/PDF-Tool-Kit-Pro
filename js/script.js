@@ -944,6 +944,7 @@
           const out = await mergedPdf.save();
           saveAs(new Blob([out],{type:'application/pdf'}), 'merged.pdf');
           toastSuccess(`Merged PDF saved (${mergedPdf.getPageCount()} pages)`);
+          playSound('complete');
         } catch(saveErr){
           if(saveErr.message.includes('Array buffer allocation failed') || saveErr.name === 'RangeError'){
             toastError('Merged PDF too large to save. Try merging fewer files or smaller PDFs.');
@@ -1020,6 +1021,7 @@
       document.getElementById('splitZipBtn').style.display = 'inline-block';
       hideOverlay();
       toastSuccess('Split ready — click Download on pages or Download All as ZIP');
+      playSound('complete');
     } catch(err){ hideOverlay(); toastError('Split failed: '+err.message); }
   }
 
@@ -1066,6 +1068,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('PDF created');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Creation failed: '+err.message);
       errorsCount++;
@@ -1146,6 +1149,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('PDF created from images');
+      playSound('complete');
     } catch(err){ hideOverlay(); toastError('Creation from images failed: '+err.message); errorsCount++; updateCounters(); }
   }
 
@@ -1991,6 +1995,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Rotated PDF saved');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Rotation failed: '+err.message);
       errorsCount++;
@@ -2023,6 +2028,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Pages deleted, PDF saved');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Deletion failed: '+err.message);
       errorsCount++;
@@ -2051,6 +2057,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Pages extracted, PDF saved');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Extraction failed: '+err.message);
       errorsCount++;
@@ -2113,6 +2120,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Page numbers added');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Adding page numbers failed: '+err.message);
       errorsCount++;
@@ -2145,6 +2153,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Custom text added');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Adding text failed: '+err.message);
       errorsCount++;
@@ -2172,6 +2181,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Metadata updated');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Metadata update failed: '+err.message);
       errorsCount++;
@@ -2257,6 +2267,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Images downloaded');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Conversion failed: '+err.message);
       errorsCount++;
@@ -2301,6 +2312,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('OCR completed');
+      playSound('complete');
     } catch(err){
       console.error('OCR error:', err);
       hideOverlay(); toastError('OCR failed: ' + (err.message || 'Unknown error'));
@@ -2333,6 +2345,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Signature added');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Signature failed: '+err.message);
       errorsCount++;
@@ -2365,6 +2378,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Search completed');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Search failed: '+err.message);
       errorsCount++;
@@ -2540,6 +2554,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Annotated PDF exported');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
       errorsCount++;
@@ -2703,6 +2718,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('PDF with shapes exported');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
       errorsCount++;
@@ -2803,6 +2819,7 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Filled PDF exported');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Export failed: '+err.message);
       errorsCount++;
@@ -2890,6 +2907,7 @@
       updateCounters();
       hideOverlay();
       toastSuccess('Images extracted');
+      playSound('complete');
     } catch(err){
       hideOverlay();
       toastError('Extraction failed: '+err.message);
