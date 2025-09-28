@@ -204,3 +204,27 @@ input[type="file"]{display:none}
 .popup-content{display:flex; flex-direction:column; gap:8px;}
 #popupMessage{margin:0;}
 #popupClose{align-self:flex-end; padding:4px 8px; border:1px solid var(--muted); background:transparent; border-radius:4px; cursor:pointer;}
+
+/* Login Screen */
+.login-screen{
+  position:fixed; inset:0; background:linear-gradient(135deg, var(--accent), #7c9cff); display:flex; align-items:center; justify-content:center; z-index:10001;
+}
+.login-container{
+  background:var(--card); border-radius:16px; box-shadow:var(--shadow); padding:32px; width:100%; max-width:400px; text-align:center;
+}
+.login-header{margin-bottom:24px;}
+.login-header img{width:64px; height:64px; margin-bottom:16px;}
+.login-header h2{margin:0; color:var(--muted); font-weight:700;}
+.login-header p{margin:8px 0 0 0; color:var(--muted); opacity:.7;}
+.login-form{margin-bottom:16px;}
+.tab-buttons{display:flex; margin-bottom:16px; border-radius:8px; overflow:hidden; background:rgba(0,0,0,0.05);}
+.tab-btn{flex:1; padding:10px; border:0; background:transparent; color:var(--muted); cursor:pointer; transition: all 0.2s;}
+.tab-btn.active{background:var(--accent); color:white;}
+.form-content{display:none;}
+.form-content.active{display:block;}
+.form-content input{display:block; width:100%; margin-bottom:12px; padding:12px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); background:transparent;}
+.form-content button{margin-top:8px;}
+.auth-message{margin-top:16px; font-size:14px;}
+.auth-message.error{color:#ff4444;}
+.auth-message.success{color:#44ff44;}
+.full-width{width:100%;}

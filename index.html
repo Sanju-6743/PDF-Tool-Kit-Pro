@@ -38,9 +38,45 @@
   <!-- Mammoth.js for DOCX -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
 
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-theme="light">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-container">
+      <div class="login-header">
+        <img class="logo" src="images/Gemini_Generated_Image_pt8fnjpt8fnjpt8f.png" alt="PDF Toolkit Pro Logo">
+        <h2>PDF Toolkit Pro</h2>
+        <p>Login to access your PDF tools</p>
+      </div>
+
+      <div class="login-form">
+        <div class="tab-buttons">
+          <button id="loginTab" class="tab-btn active">Login</button>
+          <button id="signupTab" class="tab-btn">Sign Up</button>
+        </div>
+
+        <div id="loginForm" class="form-content active">
+          <input type="email" id="loginEmail" placeholder="Email" required>
+          <input type="password" id="loginPassword" placeholder="Password" required>
+          <button id="loginBtn" class="btn primary full-width">Login</button>
+        </div>
+
+        <div id="signupForm" class="form-content">
+          <input type="email" id="signupEmail" placeholder="Email" required>
+          <input type="password" id="signupPassword" placeholder="Password" required>
+          <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" required>
+          <button id="signupBtn" class="btn primary full-width">Sign Up</button>
+        </div>
+
+        <div id="authMessage" class="auth-message"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="app" id="app">
     <!-- Topbar -->
     <div class="topbar">
@@ -68,6 +104,17 @@
         <div class="counter">
           <span class="counter-label">Avg Time:</span>
           <span class="counter-value" id="avgTime">0s</span>
+        </div>
+      </div>
+
+      <div class="global-counters">
+        <div class="counter">
+          <span class="counter-label">Total Users:</span>
+          <span class="counter-value" id="globalUsersCount">0</span>
+        </div>
+        <div class="counter">
+          <span class="counter-label">Total Files:</span>
+          <span class="counter-value" id="globalFilesCount">0</span>
         </div>
       </div>
 

@@ -4,6 +4,11 @@
    ========================= */
 
 (async function(){
+  // Supabase initialization
+  const SUPABASE_URL = 'https://lgevgqlyqgopemtipvkw.supabase.co'; // Supabase project URL
+  const SUPABASE_ANON_KEY = 'sb_publishable_QGG9HyF0tF-pmPurdgytWg_WLIyHIQA'; // Supabase API key
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   // Global variables
   const app = document.getElementById('app');
   const overlay = document.getElementById('overlay');
@@ -14,6 +19,7 @@
   let currentPdfJsDoc = null;
   let currentScale = 1.0;
   let recentFiles = JSON.parse(localStorage.getItem('pdftk.recent') || '[]');
+  let currentUser = null;
 
   // Processing counters
   let totalUploaded = 0;
@@ -25,6 +31,10 @@
   let failedItems = [];
   let enableSounds = localStorage.getItem('pdftk.sounds') === 'true' || false;
   let processingStats = { startTime: null, endTime: null, filesProcessed: 0, errors: 0 };
+
+  // Global statistics
+  let globalTotalUsers = 0;
+  let globalTotalFiles = 0;
 
   // Update counters display
   function updateCounters() {
@@ -41,6 +51,12 @@
     } else {
       badge.style.display = 'none';
     }
+  }
+
+  // Update global counters display
+  function updateGlobalCounters() {
+    document.getElementById('globalUsersCount').textContent = globalTotalUsers;
+    document.getElementById('globalFilesCount').textContent = globalTotalFiles;
   }
 
   // Batch Processing System
@@ -664,9 +680,15 @@
       renderThumbsPreview( Math.min(8, currentPdfJsDoc.numPages) );
       // save recent
       storeRecentFiles([file]);
+      showNotification('PDF loaded successfully in Viewer', 'success');
+      playSound('complete');
     } catch(err){
       hideOverlay();
       console.error(err);
+      errorsCount++;
+      updateCounters();
+      showNotification('Failed to load PDF: ' + err.message, 'error');
+      playSound('error');
       Swal.fire('Error','Could not load PDF: '+err.message,'error');
     }
   }
@@ -767,11 +789,13 @@
       updateCounters();
       hideOverlay();
       toastSuccess('Text extracted');
+      playSound('complete');
     } catch(err){
       hideOverlay();
       toastError('Extraction failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -967,6 +991,7 @@
         toastError('Merge failed: '+err.message);
       }
       console.error('Merge error:', err);
+      playSound('error');
     }
   }
 
@@ -1019,10 +1044,13 @@
         await new Promise(r=>setTimeout(r,10));
       }
       document.getElementById('splitZipBtn').style.display = 'inline-block';
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
       toastSuccess('Split ready — click Download on pages or Download All as ZIP');
       playSound('complete');
-    } catch(err){ hideOverlay(); toastError('Split failed: '+err.message); }
+    } catch(err){ hideOverlay(); toastError('Split failed: '+err.message); errorsCount++; updateCounters(); playSound('error'); }
   }
 
   async function splitPdfToPages(){
@@ -1195,7 +1223,8 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Watermark added');
-    } catch(err){ hideOverlay(); toastError('Watermarking failed: '+err.message); errorsCount++; updateCounters(); }
+      playSound('complete');
+    } catch(err){ hideOverlay(); toastError('Watermarking failed: '+err.message); errorsCount++; updateCounters(); playSound('error'); }
   }
 
   // ---------- Reorder Pages ----------
@@ -1271,7 +1300,8 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Reordered PDF saved');
-    } catch(err){ hideOverlay(); toastError('Reorder failed: '+err.message); errorsCount++; updateCounters(); }
+      playSound('complete');
+    } catch(err){ hideOverlay(); toastError('Reorder failed: '+err.message); errorsCount++; updateCounters(); playSound('error'); }
   }
 
   // ---------- Duplicate Pages ----------
@@ -1314,10 +1344,12 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Duplicated PDF saved');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Duplication failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -1362,10 +1394,12 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Blank page added');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Failed to add blank page: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -1431,10 +1465,12 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Pages inserted');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Failed to insert pages: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -1566,11 +1602,13 @@
       updateCounters();
       hideOverlay();
       toastSuccess('PDF split by bookmarks — download as ZIP');
+      playSound('complete');
     } catch(err){
       hideOverlay();
       toastError('Split failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -1631,11 +1669,13 @@
       updateCounters();
       hideOverlay();
       toastSuccess('PDF split every N pages — download as ZIP');
+      playSound('complete');
     } catch(err){
       hideOverlay();
       toastError('Split failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -1941,7 +1981,8 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Compressed PDF saved — note: frontend compression limits apply');
-    } catch(err){ hideOverlay(); toastError('Compression failed: '+err.message); errorsCount++; updateCounters(); console.error(err); }
+      playSound('complete');
+    } catch(err){ hideOverlay(); toastError('Compression failed: '+err.message); errorsCount++; updateCounters(); console.error(err); playSound('error'); }
   }
 
   function dataURLToArrayBuffer(dataURL){
@@ -2000,6 +2041,7 @@
       hideOverlay(); toastError('Rotation failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2062,6 +2104,7 @@
       hideOverlay(); toastError('Extraction failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2125,6 +2168,7 @@
       hideOverlay(); toastError('Adding page numbers failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2158,6 +2202,7 @@
       hideOverlay(); toastError('Adding text failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2186,6 +2231,7 @@
       hideOverlay(); toastError('Metadata update failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2205,10 +2251,12 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('Password protection added');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Password protection failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2228,10 +2276,12 @@
       totalProcessed++;
       updateCounters();
       hideOverlay(); toastSuccess('PDF unlocked');
+      playSound('complete');
     } catch(err){
       hideOverlay(); toastError('Unlock failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2559,6 +2609,7 @@
       hideOverlay(); toastError('Export failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2824,6 +2875,7 @@
       hideOverlay(); toastError('Export failed: '+err.message);
       errorsCount++;
       updateCounters();
+      playSound('error');
     }
   }
 
@@ -2940,15 +2992,25 @@
   async function loadChatbotFile(file){
     try{
       showOverlay('Loading file...');
+      processingStartTime = Date.now();
       let text = await extractTextFromFile(file);
       text = text.substring(0, 10000); // Limit to 10k chars for API
       chatMessages = [{role: 'system', content: `Document content: ${text}`}];
       document.getElementById('chatbotContainer').style.display = 'block';
       document.getElementById('chatbotDrop').style.display = 'none';
       addMessage('AI', 'Document loaded. You can now ask questions or request a summary.');
+      processingTimes.push(Date.now() - processingStartTime);
+      totalProcessed++;
+      updateCounters();
       hideOverlay();
+      showNotification('File loaded successfully for AI Chatbot', 'success');
+      playSound('complete');
     } catch(err){
       hideOverlay();
+      errorsCount++;
+      updateCounters();
+      showNotification('Failed to load file: ' + err.message, 'error');
+      playSound('error');
       toastError('Failed to load file: '+err.message);
     }
   }
@@ -3072,6 +3134,280 @@
   document.addEventListener('keydown', (e)=> {
     if(e.key==='/' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); document.getElementById('globalFileInput').click(); }
   });
+
+  // Authentication Functions
+  async function checkAuthState() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUser = user;
+      if (user) {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('app').style.display = 'grid';
+        loadUserStats();
+      } else {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('app').style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  }
+
+  async function loginUser(email, password) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      if (error) throw error;
+      currentUser = data.user;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'grid';
+      loadUserStats();
+      showNotification('Login successful!', 'success');
+    } catch (error) {
+      showAuthMessage(error.message, 'error');
+    }
+  }
+
+  async function signupUser(email, password) {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+      if (error) throw error;
+      showAuthMessage('Signup successful! Please check your email to confirm your account.', 'success');
+    } catch (error) {
+      showAuthMessage(error.message, 'error');
+    }
+  }
+
+  async function logoutUser() {
+    try {
+      await supabase.auth.signOut();
+      currentUser = null;
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+      showNotification('Logged out successfully', 'info');
+    } catch (error) {
+      showNotification('Logout failed: ' + error.message, 'error');
+    }
+  }
+
+  function showAuthMessage(message, type) {
+    const msgEl = document.getElementById('authMessage');
+    msgEl.textContent = message;
+    msgEl.className = `auth-message ${type}`;
+  }
+
+  async function loadUserStats() {
+    if (!currentUser) return;
+    try {
+      console.log('Loading user stats for user:', currentUser.id);
+      // Load user stats from database
+      const { data: stats, error } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      console.log('Database response:', { stats, error });
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No stats exist yet, initialize with zeros
+          totalUploaded = 0;
+          totalProcessed = 0;
+          updateCounters();
+          console.log('No user stats found, initializing with zeros');
+        } else {
+          console.error('Failed to load user stats:', error);
+          console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+          });
+          showNotification(`Database error: ${error.message}`, 'error');
+          return;
+        }
+      } else if (stats) {
+        totalUploaded = stats.files_uploaded || 0;
+        totalProcessed = stats.files_processed || 0;
+        updateCounters();
+        console.log('Loaded user stats:', { totalUploaded, totalProcessed });
+      }
+
+      // Load global statistics
+      await loadGlobalStats();
+    } catch (error) {
+      console.error('Failed to load user stats:', error);
+      showNotification('Failed to load user statistics', 'error');
+    }
+  }
+
+  async function loadGlobalStats() {
+    try {
+      console.log('Loading global statistics...');
+
+      // Get total users count from auth.users table (all registered users)
+      const { count: usersCount, error: usersError } = await supabase
+        .from('auth.users')
+        .select('*', { count: 'exact', head: true });
+
+      if (usersError) {
+        console.error('Failed to load users count:', usersError);
+        globalTotalUsers = 0;
+      } else {
+        globalTotalUsers = usersCount || 0;
+      }
+
+      // Get total files uploaded from file_uploads table
+      const { count: filesCount, error: filesError } = await supabase
+        .from('file_uploads')
+        .select('*', { count: 'exact', head: true });
+
+      if (filesError) {
+        console.error('Failed to load global files count:', filesError);
+        globalTotalFiles = 0;
+      } else {
+        globalTotalFiles = filesCount || 0;
+      }
+
+      console.log('Global stats loaded:', { globalTotalUsers, globalTotalFiles });
+      updateGlobalCounters();
+    } catch (error) {
+      console.error('Failed to load global stats:', error);
+      globalTotalUsers = 0;
+      globalTotalFiles = 0;
+    }
+  }
+
+  async function updateUserStats(operation) {
+    if (!currentUser) return;
+    try {
+      const { data: stats } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      let updateData = { user_id: currentUser.id, last_activity: new Date().toISOString() };
+
+      if (stats) {
+        updateData.files_uploaded = (stats.files_uploaded || 0) + (operation === 'upload' ? 1 : 0);
+        updateData.files_processed = (stats.files_processed || 0) + (operation === 'process' ? 1 : 0);
+        await supabase.from('user_stats').update(updateData).eq('user_id', currentUser.id);
+      } else {
+        updateData.files_uploaded = operation === 'upload' ? 1 : 0;
+        updateData.files_processed = operation === 'process' ? 1 : 0;
+        await supabase.from('user_stats').insert(updateData);
+      }
+
+      // Update local counters
+      if (operation === 'upload') totalUploaded++;
+      if (operation === 'process') totalProcessed++;
+      updateCounters();
+    } catch (error) {
+      console.error('Failed to update user stats:', error);
+    }
+  }
+
+  async function recordFileUpload(fileName, fileSize, operation) {
+    if (!currentUser) return;
+    try {
+      await supabase.from('file_uploads').insert({
+        user_id: currentUser.id,
+        file_name: fileName,
+        file_size: fileSize,
+        operation: operation,
+        uploaded_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Failed to record file upload:', error);
+    }
+  }
+
+  // Auth Event Listeners
+  document.getElementById('loginTab').addEventListener('click', () => {
+    document.getElementById('loginTab').classList.add('active');
+    document.getElementById('signupTab').classList.remove('active');
+    document.getElementById('loginForm').classList.add('active');
+    document.getElementById('signupForm').classList.remove('active');
+  });
+
+  document.getElementById('signupTab').addEventListener('click', () => {
+    document.getElementById('signupTab').classList.add('active');
+    document.getElementById('loginTab').classList.remove('active');
+    document.getElementById('signupForm').classList.add('active');
+    document.getElementById('loginForm').classList.remove('active');
+  });
+
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      showAuthMessage('Please fill in all fields', 'error');
+      return;
+    }
+    await loginUser(email, password);
+  });
+
+  document.getElementById('signupBtn').addEventListener('click', async () => {
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const confirmPassword = document.getElementById('signupConfirmPassword').value;
+
+    if (!email || !password || !confirmPassword) {
+      showAuthMessage('Please fill in all fields', 'error');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAuthMessage('Passwords do not match', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showAuthMessage('Password must be at least 6 characters', 'error');
+      return;
+    }
+    await signupUser(email, password);
+  });
+
+  // Add logout button to topbar
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'btn';
+  logoutBtn.innerHTML = '<i class="fa-solid fa-sign-out-alt"></i> Logout';
+  logoutBtn.addEventListener('click', logoutUser);
+  document.querySelector('.top-actions').appendChild(logoutBtn);
+
+  // Auth state listener
+  supabase.auth.onAuthStateChange((event, session) => {
+    currentUser = session?.user || null;
+    checkAuthState();
+  });
+
+  // Override file upload functions to track stats
+  const originalStoreRecentFiles = storeRecentFiles;
+  storeRecentFiles = async (files) => {
+    originalStoreRecentFiles(files);
+    for (const file of files) {
+      await updateUserStats('upload');
+      await recordFileUpload(file.name, file.size, 'upload');
+    }
+  };
+
+  // Override processing functions to track stats
+  const originalExtractTextFromPdf = extractTextFromPdf;
+  extractTextFromPdf = async (pdfjsDoc) => {
+    await originalExtractTextFromPdf(pdfjsDoc);
+    await updateUserStats('process');
+  };
+
+  // Initialize auth check
+  checkAuthState();
 
   // Initial small animation
   anime({

@@ -1,126 +1,73 @@
-# PDF Toolkit Pro
+# PDF Toolkit Pro with Authentication
 
-A comprehensive frontend-only PDF toolkit built with HTML, CSS, and JavaScript. All processing happens in the browser using libraries like pdf-lib, pdf.js, and others.
+A comprehensive PDF processing toolkit with user authentication and database tracking.
 
 ## Features
 
-- **Viewer**: Preview PDFs with zoom and thumbnails
-- **Extract Text**: Extract selectable text from PDFs
-- **Merge PDFs**: Combine multiple PDFs into one with robust error handling
-- **Split PDF**: Split PDF into individual pages
-- **AI Chatbot**: Summarize documents using Gemini AI
-- **Create from Text**: Generate PDFs from text input
-- **Images to PDF**: Convert images to PDF
-- **Watermark**: Add text watermarks
-- **Reorder Pages**: Drag to reorder pages
-- **Compress PDF**: Basic compression by downscaling images
-- **Rotate Pages**: Rotate specific pages
-- **Delete Pages**: Remove pages
-- **Extract Pages**: Extract specific pages
-- **Add Page Numbers**: Number pages
-- **Add Custom Text**: Add text to pages
-- **Annotate**: Highlight, underline, notes, drawings
-- **Draw Shapes**: Rectangles, circles, arrows, lines
-- **Fill Forms**: Fill PDF form fields
-- **Edit Metadata**: Update title, author, subject
-- **Password Protect**: Add password protection
-- **Unlock PDF**: Remove password protection
-- **PDF to Images**: Convert pages to images
-- **Extract Images**: Extract embedded images
-- **OCR**: Extract text from images using Tesseract.js
-- **Add Signature**: Add digital signatures
-- **Search PDF**: Search for text within PDFs
+- **PDF Processing Tools**: Merge, split, compress, extract text, OCR, watermark, and more
+- **User Authentication**: Login/signup with Supabase Auth
+- **Database Tracking**: Track file uploads and processing statistics
+- **Modern UI**: Clean, responsive design with dark/light themes
+- **Client-side Processing**: All operations run in the browser
 
-## Technologies Used
+## Setup Instructions
 
-- **pdf-lib**: PDF creation and manipulation
-- **pdf.js**: PDF rendering and text extraction
-- **jsPDF**: Additional PDF generation
-- **Tesseract.js**: OCR functionality
-- **JSZip**: ZIP file creation
-- **FileSaver.js**: File downloads
-- **SweetAlert2**: User notifications
-- **Anime.js**: Animations
-- **Mammoth.js**: DOCX text extraction
-- **Gemini AI**: Document summarization (requires API key)
+### 1. Supabase Setup
 
-## Project Structure
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Go to Settings > API to get your project URL and anon key
+3. Go to the SQL Editor and run the commands from `supabase_setup.sql`
 
-```
-/
-├── index.html          # Main HTML file
-├── css/
-│   └── style.css       # Stylesheets
-├── js/
-│   └── script.js       # JavaScript functionality
-├── vercel.json         # Vercel deployment config
-└── README.md           # This file
+### 2. Update Configuration
+
+In `js/script.js`, update the Supabase configuration:
+
+```javascript
+const SUPABASE_URL = 'https://your-project.supabase.co'; // Replace with your Supabase URL
+const SUPABASE_ANON_KEY = 'your-anon-key-here'; // Replace with your anon key
 ```
 
-## Deployment to Vercel
+### 3. Deploy to Vercel
 
-1. **Prerequisites**:
-   - GitHub account
-   - Vercel account (free tier available)
+1. Install Vercel CLI: `npm install -g vercel`
+2. Login: `vercel login`
+3. Deploy: `vercel --prod`
 
-2. **Setup Repository**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin https://github.com/Sanju-6743/PDF-Tool-Kit-Pro.git
-   git push -u origin main
-   ```
+### 4. Environment Variables (Optional)
 
-3. **Deploy on Vercel**:
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Import Project"
-   - Connect your GitHub account
-   - Select the repository `PDF-Tool-Kit-Pro`
-   - Vercel will automatically detect the configuration
-   - Click "Deploy"
+For production, set these environment variables in Vercel:
 
-4. **Configuration**:
-   - The `vercel.json` file configures Vercel to serve the static files
-   - All processing is client-side, no server required
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+## Database Schema
+
+### user_stats
+- Tracks user file upload and processing statistics
+- Row Level Security enabled
+
+### file_uploads
+- Logs all file operations
+- Linked to authenticated users
 
 ## Usage
 
-1. Open the deployed URL in your browser
-2. Select a tool from the sidebar
-3. Upload files using the buttons or drag & drop
-4. Configure options as needed
-5. Click the action button to process
-6. Download the result
+1. Sign up or login
+2. Upload PDFs using the tools
+3. Process files with various operations
+4. View statistics in the top counters
+5. Logout when done
 
-## Important Notes
+## Security
 
-- **Frontend-Only**: All PDF processing happens in the browser. Large files may cause performance issues.
-- **API Key**: The AI Chatbot requires a Google Gemini API key. Replace the placeholder in `script.js` with your own key for production use.
-- **Security**: Never expose sensitive API keys in client-side code. Consider using a proxy server for production.
-- **Browser Compatibility**: Works best in modern browsers with good WebAssembly support.
-- **File Size Limits**: Large PDFs may exceed browser memory limits.
+- All authentication handled by Supabase
+- Row Level Security prevents users from accessing others' data
+- Client-side processing ensures privacy
 
-## Development
+## Technologies
 
-To run locally:
-1. Clone the repository
-2. Open `index.html` in a modern web browser
-3. No build process required
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is open source. Feel free to use and modify as needed.
-
-## Author
-
-Sanju - PDF Toolkit Pro
+- HTML5, CSS3, JavaScript (ES6+)
+- Supabase (Auth + Database)
+- PDF-lib, PDF.js, Tesseract.js
+- SweetAlert2, Anime.js
+- Vercel (Deployment)
