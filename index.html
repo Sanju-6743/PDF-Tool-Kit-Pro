@@ -17,6 +17,9 @@
   <!-- Anime.js -->
   <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
 
+  <!-- Framer Motion -->
+  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
   <!-- pdf-lib -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
@@ -119,16 +122,16 @@
       </div>
 
       <div class="top-actions">
-        <button class="btn hamburger" id="hamburger" title="Menu"><i class="fa-solid fa-bars"></i></button>
+        <button class="btn hamburger" id="hamburger" title="Menu" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
         <div class="toggle" title="Theme toggle" id="themeToggle">
           <i class="fa-regular fa-sun"></i>
-          <label style="font-size:13px">Light</label>
+          <label>Light</label>
         </div>
 
-        <button class="btn" id="recentBtn" title="Recent files"><i class="fa-solid fa-clock-rotate-left"></i> Recent</button>
-        <button class="btn primary" id="quickUpload"><i class="fa-solid fa-upload"></i> Upload</button>
-        <button class="btn" id="notificationsBtn" title="Error notifications"><i class="fa-solid fa-bell"></i> <span id="notificationBadge" class="badge" style="display:none;">0</span></button>
-        <button class="btn" id="soundToggle" title="Toggle notification sounds"><i class="fa-solid fa-volume-up"></i></button>
+        <button class="btn" id="recentBtn" title="Recent files" aria-label="Recent files"><i class="fa-solid fa-clock-rotate-left"></i><span> Recent</span></button>
+        <button class="btn primary" id="quickUpload" aria-label="Quick upload"><i class="fa-solid fa-upload"></i><span> Upload</span></button>
+        <button class="btn" id="notificationsBtn" title="Error notifications" aria-label="Notifications"><i class="fa-solid fa-bell"></i><span id="notificationBadge" class="badge" style="display:none;">0</span></button>
+        <button class="btn" id="soundToggle" title="Toggle notification sounds" aria-label="Sound toggle"><i class="fa-solid fa-volume-up"></i></button>
       </div>
     </div>
 
@@ -169,6 +172,7 @@
           <button data-tool="duplicate"><i class="fa-solid fa-clone"></i> Duplicate Pages</button>
           <button data-tool="addblank"><i class="fa-solid fa-plus-circle"></i> Add Blank Page</button>
           <button data-tool="insertpages"><i class="fa-solid fa-file-circle-plus"></i> Insert Pages</button>
+          <button data-tool="mixpages"><i class="fa-solid fa-shuffle"></i> Mix/Interleave Pages</button>
           <button data-tool="splitbookmarks"><i class="fa-solid fa-bookmark"></i> Split by Bookmarks</button>
           <button data-tool="splitn"><i class="fa-solid fa-list-ol"></i> Split Every N Pages</button>
         </div>
@@ -187,6 +191,10 @@
           <button data-tool="imagespdf"><i class="fa-solid fa-images"></i> Images → PDF</button>
           <button data-tool="pdftoimages"><i class="fa-solid fa-file-image"></i> PDF → Images</button>
           <button data-tool="extractimages"><i class="fa-solid fa-image"></i> Extract Images</button>
+          <button data-tool="editimages"><i class="fa-solid fa-crop"></i> Edit Images in PDF</button>
+          <button data-tool="backgroundimages"><i class="fa-solid fa-image"></i> Add Background Images</button>
+          <button data-tool="stamps"><i class="fa-solid fa-certificate"></i> Add Stamps</button>
+          <button data-tool="multisignature"><i class="fa-solid fa-signature"></i> Multi-Signature</button>
         </div>
         <div class="nav-group">
           <div class="nav-title">Other</div>
@@ -216,12 +224,31 @@
       <section class="tool active" id="viewer">
         <div class="viewer">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div><strong>PDF Viewer</strong><div class="muted">Preview first page with zoom & thumbnails</div></div>
+            <div><strong>PDF Viewer</strong><div class="muted">Advanced PDF viewer with navigation & zoom controls</div></div>
             <div class="controls">
               <button class="btn" id="viewerOpenBtn"><i class="fa-solid fa-upload"></i> Open PDF</button>
-              <button class="btn" id="zoomOutBtn"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-              <div class="range"><input id="zoomRange" type="range" min="50" max="200" value="100"></div>
-              <button class="btn" id="zoomInBtn"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+              <button class="btn" id="prevPageBtn" title="Previous Page"><i class="fa-solid fa-chevron-left"></i></button>
+              <div class="page-info">
+                <input type="number" id="pageInput" min="1" value="1" style="width:60px;">
+                <span class="muted">of <span id="totalPages">0</span></span>
+              </div>
+              <button class="btn" id="nextPageBtn" title="Next Page"><i class="fa-solid fa-chevron-right"></i></button>
+              <div class="zoom-controls">
+                <button class="btn" id="fitWidthBtn" title="Fit to Width"><i class="fa-solid fa-arrows-left-right"></i></button>
+                <button class="btn" id="fitPageBtn" title="Fit to Page"><i class="fa-solid fa-expand"></i></button>
+                <button class="btn" id="zoomOutBtn"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <div class="range"><input id="zoomRange" type="range" min="50" max="300" value="100"></div>
+                <button class="btn" id="zoomInBtn"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                <select id="zoomPreset" style="margin-left:8px;">
+                  <option value="0.5">50%</option>
+                  <option value="0.75">75%</option>
+                  <option value="1" selected>100%</option>
+                  <option value="1.25">125%</option>
+                  <option value="1.5">150%</option>
+                  <option value="2">200%</option>
+                </select>
+              </div>
+              <button class="btn" id="fullscreenBtn" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
               <button class="btn" id="renderAllBtn"><i class="fa-solid fa-list"></i> Thumbs</button>
             </div>
           </div>
@@ -463,6 +490,31 @@
         <div class="dropzone" id="insertpagesSecondDrop" style="margin-top:8px">Drop second PDF here</div>
       </section>
 
+      <!-- Mix/Interleave Pages -->
+      <section class="tool" id="mixpages">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Mix/Interleave Pages</strong><div class="muted">Interleave pages from multiple PDFs in custom patterns</div></div>
+          <div>
+            <input id="mixpagesInput" type="file" accept="application/pdf" multiple style="display:none">
+            <button class="btn" id="mixpagesChoose"><i class="fa-solid fa-folder-open"></i> Choose PDFs</button>
+            <button class="btn primary" id="mixpagesRun"><i class="fa-solid fa-shuffle"></i> Mix & Download</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label class="muted small">Pattern (e.g. 1,2,1,2 for alternating)</label>
+          <input id="mixpagesPattern" placeholder="1,2,1,2" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+          <label class="muted small">Repeat pattern</label>
+          <input id="mixpagesRepeat" type="number" value="1" min="1" style="width:60px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
+        </div>
+
+        <div class="dropzone" id="mixpagesDrop">Drop multiple PDFs here</div>
+        <div id="mixpagesPreview" style="margin-top:10px; display:none;">
+          <div style="font-weight:600; margin-bottom:8px">Mix Preview:</div>
+          <div id="mixpagesOrder" style="display:flex; flex-direction:column; gap:4px; max-height:200px; overflow-y:auto;"></div>
+        </div>
+      </section>
+
       <!-- Split by Bookmarks -->
       <section class="tool" id="splitbookmarks">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -653,16 +705,40 @@
         <div class="dropzone" id="annotateDrop">Drop PDF here</div>
 
         <div id="annotateContainer" style="display:none; margin-top:10px;">
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
             <label class="muted small">Page</label>
             <select id="annotatePageSelect"></select>
             <div class="muted small">Tools:</div>
             <button class="btn small" id="highlightBtn" title="Highlight"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn small" id="underlineBtn" title="Underline"><i class="fa-solid fa-underline"></i></button>
+            <button class="btn small" id="strikethroughBtn" title="Strikethrough"><i class="fa-solid fa-strikethrough"></i></button>
             <button class="btn small" id="noteBtn" title="Add Note"><i class="fa-solid fa-sticky-note"></i></button>
             <button class="btn small" id="penBtn" title="Pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn small" id="whiteoutBtn" title="Whiteout/Redact"><i class="fa-solid fa-eraser"></i></button>
             <button class="btn small" id="eraserBtn" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
             <button class="btn small" id="clearBtn" title="Clear All"><i class="fa-solid fa-trash"></i></button>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+            <div class="muted small">Style:</div>
+            <label class="muted small">Color</label>
+            <input id="annotationColor" type="color" value="#ffff00" style="width:40px;">
+            <label class="muted small">Size</label>
+            <select id="annotationSize">
+              <option value="12">12px</option>
+              <option value="16">16px</option>
+              <option value="20" selected>20px</option>
+              <option value="24">24px</option>
+              <option value="32">32px</option>
+            </select>
+            <label class="muted small">Font</label>
+            <select id="annotationFont">
+              <option value="Arial">Arial</option>
+              <option value="Helvetica" selected>Helvetica</option>
+              <option value="Times">Times</option>
+              <option value="Courier">Courier</option>
+            </select>
+            <button class="btn small" id="hyperlinkBtn" title="Add Hyperlink"><i class="fa-solid fa-link"></i></button>
+            <button class="btn small" id="removeHyperlinkBtn" title="Remove Hyperlink"><i class="fa-solid fa-unlink"></i></button>
           </div>
           <div style="position:relative; display:inline-block; border:1px solid var(--muted);">
             <canvas id="annotateCanvas"></canvas>
@@ -884,6 +960,189 @@
 
         <div class="dropzone" id="searchDrop">Drop PDF here</div>
         <div id="searchResults" style="margin-top:10px"></div>
+      </section>
+
+      <!-- Edit Images in PDF -->
+      <section class="tool" id="editimages">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Edit Images in PDF</strong><div class="muted">Resize, move, and manipulate embedded images</div></div>
+          <div>
+            <input id="editImagesInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="editImagesChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
+            <button class="btn primary" id="editImagesRun"><i class="fa-solid fa-download"></i> Export Edited PDF</button>
+          </div>
+        </div>
+
+        <div class="dropzone" id="editImagesDrop">Drop PDF here</div>
+
+        <div id="editImagesContainer" style="display:none; margin-top:10px;">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+            <label class="muted small">Page</label>
+            <select id="editImagesPageSelect"></select>
+            <div class="muted small">Tools:</div>
+            <button class="btn small" id="selectImageBtn" title="Select Image"><i class="fa-solid fa-mouse-pointer"></i></button>
+            <button class="btn small" id="resizeImageBtn" title="Resize"><i class="fa-solid fa-expand-arrows-alt"></i></button>
+            <button class="btn small" id="moveImageBtn" title="Move"><i class="fa-solid fa-arrows-alt"></i></button>
+            <button class="btn small" id="deleteImageBtn" title="Delete Image"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn small" id="resetImageBtn" title="Reset Changes"><i class="fa-solid fa-undo"></i></button>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+            <div class="muted small">Image Properties:</div>
+            <label class="muted small">Scale</label>
+            <input id="imageScale" type="range" min="0.1" max="3" step="0.1" value="1" style="width:100px;">
+            <span id="imageScaleValue" class="muted">100%</span>
+            <label class="muted small">Opacity</label>
+            <input id="imageOpacity" type="range" min="0" max="1" step="0.1" value="1" style="width:100px;">
+            <span id="imageOpacityValue" class="muted">100%</span>
+          </div>
+          <div style="position:relative; display:inline-block; border:1px solid var(--muted);">
+            <canvas id="editImagesCanvas"></canvas>
+            <canvas id="editImagesOverlay" style="position:absolute; top:0; left:0;"></canvas>
+          </div>
+          <div id="imageInfo" style="margin-top:8px; font-size:12px; color:var(--muted);"></div>
+        </div>
+      </section>
+
+      <!-- Add Background Images -->
+      <section class="tool" id="backgroundimages">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Add Background Images</strong><div class="muted">Add background images to PDF pages</div></div>
+          <div>
+            <input id="backgroundImagesPdfInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="backgroundImagesPdfChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
+            <input id="backgroundImagesInput" type="file" accept="image/*" style="display:none">
+            <button class="btn" id="backgroundImagesChoose"><i class="fa-solid fa-image"></i> Choose Background</button>
+            <button class="btn primary" id="backgroundImagesRun"><i class="fa-solid fa-file-export"></i> Add Background</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+          <label class="muted small">Background Position</label>
+          <select id="backgroundPosition">
+            <option value="stretch">Stretch to Fit</option>
+            <option value="center">Center</option>
+            <option value="tile">Tile</option>
+            <option value="custom">Custom Position</option>
+          </select>
+          <label class="muted small">Opacity</label>
+          <input id="backgroundOpacity" type="range" min="0.1" max="1" step="0.1" value="0.3" style="width:100px;">
+          <span id="backgroundOpacityValue" class="muted">30%</span>
+          <label class="muted small">Pages</label>
+          <input id="backgroundPages" placeholder="1,3-5 or all" style="width:120px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);">
+        </div>
+
+        <div class="dropzone" id="backgroundImagesDrop">Drop PDF here</div>
+        <div id="backgroundPreview" style="margin-top:10px; display:none;">
+          <div style="font-weight:600; margin-bottom:8px">Background Preview:</div>
+          <div style="border:1px solid var(--muted); border-radius:8px; padding:10px; background:var(--card);">
+            <img id="backgroundPreviewImg" style="max-width:200px; max-height:150px; border-radius:4px;">
+          </div>
+        </div>
+      </section>
+
+      <!-- Add Stamps -->
+      <section class="tool" id="stamps">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Add Stamps</strong><div class="muted">Add predefined stamps to PDF pages</div></div>
+          <div>
+            <input id="stampsInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="stampsChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
+            <button class="btn primary" id="stampsRun"><i class="fa-solid fa-certificate"></i> Add Stamp</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+          <label class="muted small">Stamp Type</label>
+          <select id="stampType">
+            <option value="CONFIDENTIAL">CONFIDENTIAL</option>
+            <option value="APPROVED">APPROVED</option>
+            <option value="REJECTED">REJECTED</option>
+            <option value="DRAFT">DRAFT</option>
+            <option value="URGENT">URGENT</option>
+            <option value="COMPLETED">COMPLETED</option>
+            <option value="REVIEW">REVIEW</option>
+            <option value="FINAL">FINAL</option>
+            <option value="VOID">VOID</option>
+            <option value="PAID">PAID</option>
+            <option value="custom">Custom Text</option>
+          </select>
+          <input id="customStampText" placeholder="Custom stamp text" style="display:none; flex:1; padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);">
+          <label class="muted small">Color</label>
+          <input id="stampColor" type="color" value="#ff0000" style="width:40px;">
+          <label class="muted small">Size</label>
+          <select id="stampSize">
+            <option value="24">24px</option>
+            <option value="36">36px</option>
+            <option value="48" selected>48px</option>
+            <option value="72">72px</option>
+            <option value="96">96px</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+          <label class="muted small">Position</label>
+          <select id="stampPosition">
+            <option value="top-left">Top Left</option>
+            <option value="top-center">Top Center</option>
+            <option value="top-right">Top Right</option>
+            <option value="center">Center</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="bottom-center">Bottom Center</option>
+            <option value="bottom-right">Bottom Right</option>
+            <option value="diagonal">Diagonal</option>
+          </select>
+          <label class="muted small">Pages</label>
+          <input id="stampPages" placeholder="1,3-5 or all" style="width:120px; padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);">
+          <label class="muted small">Opacity</label>
+          <input id="stampOpacity" type="range" min="0.1" max="1" step="0.1" value="0.7" style="width:100px;">
+          <span id="stampOpacityValue" class="muted">70%</span>
+        </div>
+
+        <div class="dropzone" id="stampsDrop">Drop PDF here</div>
+        <div id="stampPreview" style="margin-top:10px; display:none;">
+          <div style="font-weight:600; margin-bottom:8px">Stamp Preview:</div>
+          <div style="border:1px solid var(--muted); border-radius:8px; padding:20px; background:var(--card); position:relative; width:300px; height:200px;">
+            <div id="stampPreviewText" style="font-weight:bold; text-align:center; transform:rotate(-15deg);"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Multi-Signature -->
+      <section class="tool" id="multisignature">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Multi-Signature</strong><div class="muted">Add multiple signatures to different pages or positions</div></div>
+          <div>
+            <input id="multiSignatureInput" type="file" accept="application/pdf" style="display:none">
+            <button class="btn" id="multiSignatureChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
+            <button class="btn primary" id="multiSignatureRun"><i class="fa-solid fa-signature"></i> Add Signatures</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+          <label class="muted small">Signature Style</label>
+          <select id="signatureStyle">
+            <option value="text">Text Signature</option>
+            <option value="drawn">Drawn Signature</option>
+            <option value="image">Image Signature</option>
+          </select>
+          <input id="signatureTextInput" placeholder="Enter signature text" style="flex:1; padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);">
+          <input id="signatureImageInput" type="file" accept="image/*" style="display:none">
+          <button class="btn small" id="signatureImageBtn" style="display:none;"><i class="fa-solid fa-image"></i> Choose Image</button>
+        </div>
+
+        <div id="signaturePositions" style="margin-top:10px;">
+          <div style="font-weight:600; margin-bottom:8px">Signature Positions:</div>
+          <div id="signatureList" style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;"></div>
+          <button class="btn small" id="addSignaturePos" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Signature Position</button>
+        </div>
+
+        <div class="dropzone" id="multiSignatureDrop">Drop PDF here</div>
+        <div id="signaturePreview" style="margin-top:10px; display:none;">
+          <div style="font-weight:600; margin-bottom:8px">Signature Preview:</div>
+          <div style="border:1px solid var(--muted); border-radius:8px; padding:20px; background:var(--card); position:relative; width:400px; height:100px;">
+            <canvas id="signaturePreviewCanvas" width="400" height="100" style="border:1px solid var(--muted); border-radius:4px;"></canvas>
+          </div>
+        </div>
       </section>
     </main>
   </div>

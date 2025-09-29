@@ -3,6 +3,388 @@
    Modular functions, comments, and UI wiring
    ========================= */
 
+// Modern Drag & Drop Component with Transaction-like UI
+class ModernDropzone {
+  constructor(element, options = {}) {
+    this.element = element;
+    this.options = {
+      acceptedTypes: options.acceptedTypes || ['application/pdf', 'image/*'],
+      maxFiles: options.maxFiles || 10,
+      maxFileSize: options.maxFileSize || 100 * 1024 * 1024, // 100MB
+      onFilesSelected: options.onFilesSelected || (() => {}),
+      onUploadProgress: options.onUploadProgress || (() => {}),
+      onUploadComplete: options.onUploadComplete || (() => {}),
+      onError: options.onError || (() => {}),
+      ...options
+    };
+
+    this.files = [];
+    this.isUploading = false;
+    this.dragCounter = 0;
+
+    this.init();
+  }
+
+  init() {
+    this.createDropzoneHTML();
+    this.bindEvents();
+  }
+
+  createDropzoneHTML() {
+    const fileTypeText = this.getAcceptedTypesText();
+    this.element.innerHTML = `
+      <div class="dropzone-content">
+        <div class="dropzone-icon">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <div class="dropzone-text">Drop files here or click to browse</div>
+        <div class="dropzone-subtext">Supports: ${fileTypeText}</div>
+      </div>
+      <div class="upload-progress-container" style="display: none;">
+        <div class="upload-progress">
+          <div class="upload-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="upload-progress-text">
+          <span class="upload-status">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span class="upload-status-text">Uploading...</span>
+          </span>
+          <span class="upload-percentage">0%</span>
+        </div>
+      </div>
+      <div class="file-preview-container" style="display: none;"></div>
+      <div class="success-animation" style="display: none;">
+        <svg class="success-checkmark" viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="25" fill="none"/>
+          <path d="m14.1 27.2l7.1 7.2 16.7-16.8" fill="none"/>
+        </svg>
+      </div>
+      <div class="error-animation" style="display: none;">
+        <div class="error-icon">
+          <i class="fa-solid fa-times"></i>
+        </div>
+      </div>
+    `;
+
+    // Add mobile touch support
+    if ('ontouchstart' in window) {
+      this.element.style.minHeight = '120px';
+      this.element.style.padding = '24px';
+    }
+  }
+
+  bindEvents() {
+    // Drag events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      this.element.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    this.element.addEventListener('dragenter', (e) => {
+      this.dragCounter++;
+      this.element.classList.add('drag-over');
+    });
+
+    this.element.addEventListener('dragleave', (e) => {
+      this.dragCounter--;
+      if (this.dragCounter <= 0) {
+        this.dragCounter = 0;
+        this.element.classList.remove('drag-over');
+      }
+    });
+
+    this.element.addEventListener('drop', (e) => {
+      this.dragCounter = 0;
+      this.element.classList.remove('drag-over');
+      const files = Array.from(e.dataTransfer.files);
+      this.handleFiles(files);
+    });
+
+    // Click to browse
+    this.element.addEventListener('click', () => {
+      if (this.isUploading) return;
+      this.createFileInput();
+    });
+
+    // Prevent default drag behaviors on document
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.target === this.element || this.element.contains(e.target)) {
+        return;
+      }
+    });
+  }
+
+  createFileInput() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = this.options.maxFiles > 1;
+    input.accept = this.options.acceptedTypes.join(',');
+    input.style.display = 'none';
+
+    document.body.appendChild(input);
+    input.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      this.handleFiles(files);
+      document.body.removeChild(input);
+    });
+
+    input.click();
+  }
+
+  handleFiles(files) {
+    if (this.isUploading) return;
+
+    // Filter valid files
+    const validFiles = files.filter(file => this.validateFile(file));
+
+    if (validFiles.length === 0) {
+      this.showError('No valid files selected');
+      return;
+    }
+
+    if (validFiles.length > this.options.maxFiles) {
+      this.showError(`Too many files. Maximum ${this.options.maxFiles} files allowed.`);
+      return;
+    }
+
+    this.files = validFiles;
+    this.showFilePreview();
+    this.options.onFilesSelected(validFiles);
+  }
+
+  validateFile(file) {
+    // Check file type
+    const isValidType = this.options.acceptedTypes.some(type => {
+      if (type.includes('*')) {
+        const baseType = type.split('/')[0];
+        return file.type.startsWith(baseType);
+      }
+      return file.type === type || file.name.toLowerCase().endsWith(type.split('/')[1]);
+    });
+
+    if (!isValidType) return false;
+
+    // Check file size
+    if (file.size > this.options.maxFileSize) {
+      this.showError(`File ${file.name} is too large. Maximum size is ${this.formatFileSize(this.options.maxFileSize)}.`);
+      return false;
+    }
+
+    return true;
+  }
+
+  showFilePreview() {
+    const container = this.element.querySelector('.file-preview-container');
+    const progressContainer = this.element.querySelector('.upload-progress-container');
+
+    container.innerHTML = '';
+    container.style.display = 'block';
+
+    this.files.forEach((file, index) => {
+      const fileCard = this.createFileCard(file, index);
+      container.appendChild(fileCard);
+    });
+
+    // Hide dropzone content when showing files
+    const dropzoneContent = this.element.querySelector('.dropzone-content');
+    if (dropzoneContent) {
+      dropzoneContent.style.display = 'none';
+    }
+  }
+
+  createFileCard(file, index) {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+
+    const icon = this.getFileIcon(file);
+    const size = this.formatFileSize(file.size);
+
+    card.innerHTML = `
+      <div class="file-icon">
+        <i class="${icon}"></i>
+      </div>
+      <div class="file-info">
+        <div class="file-name" title="${file.name}">${file.name}</div>
+        <div class="file-size">${size}</div>
+      </div>
+      <div class="file-status uploading">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span>Uploading...</span>
+      </div>
+      <div class="file-actions">
+        <button class="file-action-btn remove-file" data-index="${index}" title="Remove file">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+    `;
+
+    // Add remove functionality
+    const removeBtn = card.querySelector('.remove-file');
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.removeFile(index);
+    });
+
+    return card;
+  }
+
+  getFileIcon(file) {
+    const type = file.type;
+    const name = file.name.toLowerCase();
+
+    if (type === 'application/pdf' || name.endsWith('.pdf')) {
+      return 'fa-solid fa-file-pdf';
+    } else if (type.startsWith('image/') || name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) {
+      return 'fa-solid fa-file-image';
+    } else if (name.match(/\.(doc|docx)$/)) {
+      return 'fa-solid fa-file-word';
+    } else if (name.match(/\.(txt)$/)) {
+      return 'fa-solid fa-file-lines';
+    } else if (name.match(/\.(zip|rar|7z)$/)) {
+      return 'fa-solid fa-file-zipper';
+    } else {
+      return 'fa-solid fa-file';
+    }
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  getAcceptedTypesText() {
+    return this.options.acceptedTypes.map(type => {
+      if (type.includes('*')) {
+        const baseType = type.split('/')[0];
+        return baseType.toUpperCase() + ' files';
+      }
+      return type.split('/')[1].toUpperCase();
+    }).join(', ');
+  }
+
+  async simulateUpload() {
+    if (this.files.length === 0) return;
+
+    this.isUploading = true;
+    this.element.classList.add('uploading');
+
+    const progressContainer = this.element.querySelector('.upload-progress-container');
+    const progressBar = this.element.querySelector('.upload-progress-bar');
+    const percentage = this.element.querySelector('.upload-percentage');
+    const statusText = this.element.querySelector('.upload-status-text');
+
+    progressContainer.style.display = 'block';
+
+    // Simulate upload progress
+    for (let i = 0; i <= 100; i += 5) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      progressBar.style.width = i + '%';
+      percentage.textContent = i + '%';
+      this.options.onUploadProgress(i, this.files);
+    }
+
+    // Simulate completion
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    this.showSuccess();
+    this.options.onUploadComplete(this.files);
+
+    // Reset after delay
+    setTimeout(() => {
+      this.reset();
+    }, 2000);
+  }
+
+  showSuccess() {
+    this.element.classList.remove('uploading');
+    this.element.classList.add('success');
+
+    const successAnimation = this.element.querySelector('.success-animation');
+    successAnimation.style.display = 'block';
+
+    // Update file status
+    const fileCards = this.element.querySelectorAll('.file-card');
+    fileCards.forEach(card => {
+      const status = card.querySelector('.file-status');
+      status.className = 'file-status success';
+      status.innerHTML = '<i class="fa-solid fa-check"></i><span>Complete</span>';
+    });
+
+    // Show unified notification
+    notifications.success('Files uploaded successfully!', {
+      title: 'Upload Complete',
+      duration: 3000
+    });
+
+    // Hide progress after animation
+    setTimeout(() => {
+      const progressContainer = this.element.querySelector('.upload-progress-container');
+      progressContainer.style.display = 'none';
+    }, 1000);
+  }
+
+  showError(message) {
+    this.element.classList.remove('uploading', 'success');
+    this.element.classList.add('error');
+
+    const errorAnimation = this.element.querySelector('.error-animation');
+    errorAnimation.style.display = 'block';
+
+    // Show unified notification
+    notifications.error(message, {
+      title: 'Upload Failed',
+      duration: 4000
+    });
+
+    this.options.onError(new Error(message));
+
+    // Reset after delay
+    setTimeout(() => {
+      this.reset();
+    }, 3000);
+  }
+
+  removeFile(index) {
+    this.files.splice(index, 1);
+
+    if (this.files.length === 0) {
+      this.reset();
+    } else {
+      this.showFilePreview();
+    }
+  }
+
+  reset() {
+    this.isUploading = false;
+    this.element.className = 'dropzone';
+    this.files = [];
+
+    // Show dropzone content
+    const dropzoneContent = this.element.querySelector('.dropzone-content');
+    if (dropzoneContent) {
+      dropzoneContent.style.display = 'flex';
+    }
+
+    // Hide other elements
+    const progressContainer = this.element.querySelector('.upload-progress-container');
+    const fileContainer = this.element.querySelector('.file-preview-container');
+    const successAnimation = this.element.querySelector('.success-animation');
+    const errorAnimation = this.element.querySelector('.error-animation');
+
+    if (progressContainer) progressContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'none';
+    if (successAnimation) successAnimation.style.display = 'none';
+    if (errorAnimation) errorAnimation.style.display = 'none';
+  }
+}
+
 (async function(){
   // Supabase initialization
   const SUPABASE_URL = 'https://lgevgqlyqgopemtipvkw.supabase.co'; // Supabase project URL
@@ -340,34 +722,469 @@
   // Global batch processor instance
   const batchProcessor = new BatchProcessor();
 
-  // Notification System
+  // Unified Notification System
+  class NotificationManager {
+    constructor() {
+      this.container = null;
+      this.notifications = [];
+      this.maxNotifications = 5;
+      this.defaultDuration = 5000;
+      this.init();
+    }
+
+    init() {
+      // Create notification container
+      this.container = document.createElement('div');
+      this.container.id = 'notification-container';
+      this.container.className = 'notification-container';
+      document.body.appendChild(this.container);
+
+      // Add CSS for unified notifications
+      this.addNotificationCSS();
+    }
+
+    addNotificationCSS() {
+      const style = document.createElement('style');
+      style.textContent = `
+        .notification-container {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 10000;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          max-width: 400px;
+          pointer-events: none;
+        }
+
+        .notification {
+          background: var(--card);
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+          padding: 16px 20px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          position: relative;
+          overflow: hidden;
+          transform: translateX(100%);
+          opacity: 0;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          pointer-events: auto;
+          border-left: 4px solid var(--accent);
+          backdrop-filter: blur(10px);
+        }
+
+        .notification.show {
+          transform: translateX(0);
+          opacity: 1;
+        }
+
+        .notification.hiding {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+
+        .notification.success {
+          border-left-color: var(--success);
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), var(--card));
+        }
+
+        .notification.error {
+          border-left-color: #ef4444;
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), var(--card));
+        }
+
+        .notification.warning {
+          border-left-color: #f59e0b;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), var(--card));
+        }
+
+        .notification.info {
+          border-left-color: #3b82f6;
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), var(--card));
+        }
+
+        .notification-icon {
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .notification.success .notification-icon {
+          background: rgba(16, 185, 129, 0.2);
+          color: var(--success);
+        }
+
+        .notification.error .notification-icon {
+          background: rgba(239, 68, 68, 0.2);
+          color: #ef4444;
+        }
+
+        .notification.warning .notification-icon {
+          background: rgba(245, 158, 11, 0.2);
+          color: #f59e0b;
+        }
+
+        .notification.info .notification-icon {
+          background: rgba(59, 130, 246, 0.2);
+          color: #3b82f6;
+        }
+
+        .notification-content {
+          flex: 1;
+          font-size: 14px;
+          line-height: 1.4;
+          color: var(--muted);
+        }
+
+        .notification-title {
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+
+        .notification-message {
+          font-size: 13px;
+          opacity: 0.9;
+        }
+
+        .notification-close {
+          width: 24px;
+          height: 24px;
+          border: none;
+          background: transparent;
+          color: var(--muted);
+          cursor: pointer;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          opacity: 0.7;
+        }
+
+        .notification-close:hover {
+          opacity: 1;
+          background: rgba(0, 0, 0, 0.1);
+        }
+
+        .notification-progress {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          height: 2px;
+          background: currentColor;
+          opacity: 0.3;
+          transition: width linear;
+          border-radius: 0 0 0 8px;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+          .notification-container {
+            top: 10px;
+            right: 10px;
+            left: 10px;
+            max-width: none;
+          }
+
+          .notification {
+            padding: 14px 16px;
+            font-size: 14px;
+          }
+
+          .notification-content {
+            font-size: 13px;
+          }
+
+          .notification-message {
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .notification-container {
+            top: 8px;
+            right: 8px;
+            left: 8px;
+          }
+
+          .notification {
+            padding: 12px 14px;
+          }
+        }
+
+        /* Animation classes */
+        .notification-enter {
+          animation: notificationSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .notification-exit {
+          animation: notificationSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes notificationSlideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes notificationSlideOut {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+        }
+
+        /* Success checkmark animation */
+        .notification.success .notification-icon {
+          position: relative;
+        }
+
+        .notification.success .notification-icon::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          border: 2px solid var(--success);
+          animation: successPulse 0.6s ease-out;
+        }
+
+        @keyframes successPulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        /* Error shake animation */
+        .notification.error {
+          animation: errorShake 0.5s ease-in-out;
+        }
+
+        @keyframes errorShake {
+          0%, 100% {
+            transform: translateX(0);
+          }
+          25% {
+            transform: translateX(-5px);
+          }
+          75% {
+            transform: translateX(5px);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    show(message, type = 'info', options = {}) {
+      const {
+        title = '',
+        duration = this.defaultDuration,
+        persistent = false,
+        icon = this.getDefaultIcon(type)
+      } = options;
+
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+
+      const iconHtml = icon ? `<div class="notification-icon">${icon}</div>` : '';
+      const titleHtml = title ? `<div class="notification-title">${title}</div>` : '';
+      const messageHtml = `<div class="notification-message">${message}</div>`;
+
+      notification.innerHTML = `
+        ${iconHtml}
+        <div class="notification-content">
+          ${titleHtml}
+          ${messageHtml}
+        </div>
+        <button class="notification-close" aria-label="Close notification">
+          <i class="fa-solid fa-times"></i>
+        </button>
+        ${!persistent ? '<div class="notification-progress"></div>' : ''}
+      `;
+
+      this.container.appendChild(notification);
+
+      // Trigger show animation
+      setTimeout(() => {
+        notification.classList.add('show');
+      }, 10);
+
+      // Setup close functionality
+      const closeBtn = notification.querySelector('.notification-close');
+      const closeNotification = () => {
+        this.hide(notification);
+      };
+
+      closeBtn.addEventListener('click', closeNotification);
+
+      // Auto-hide for non-persistent notifications
+      let hideTimeout;
+      let progressInterval;
+
+      if (!persistent && duration > 0) {
+        hideTimeout = setTimeout(closeNotification, duration);
+
+        // Progress bar animation
+        const progressBar = notification.querySelector('.notification-progress');
+        if (progressBar) {
+          let startTime = Date.now();
+          progressInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.max(0, (duration - elapsed) / duration);
+            progressBar.style.width = `${progress * 100}%`;
+          }, 16);
+        }
+      }
+
+      // Pause auto-hide on hover
+      notification.addEventListener('mouseenter', () => {
+        if (hideTimeout) clearTimeout(hideTimeout);
+        if (progressInterval) clearInterval(progressInterval);
+      });
+
+      // Resume auto-hide when mouse leaves
+      notification.addEventListener('mouseleave', () => {
+        if (!persistent && duration > 0) {
+          const remaining = duration - (Date.now() - (Date.now() - duration));
+          if (remaining > 0) {
+            hideTimeout = setTimeout(closeNotification, remaining);
+            const progressBar = notification.querySelector('.notification-progress');
+            if (progressBar) {
+              let startTime = Date.now();
+              progressInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.max(0, (remaining - elapsed) / remaining);
+                progressBar.style.width = `${progress * 100}%`;
+              }, 16);
+            }
+          }
+        }
+      });
+
+      // Manage notification limit
+      this.enforceLimit();
+
+      // Store notification reference
+      const notificationObj = {
+        element: notification,
+        type,
+        message,
+        title,
+        close: closeNotification
+      };
+
+      this.notifications.push(notificationObj);
+
+      return notificationObj;
+    }
+
+    hide(notification) {
+      if (typeof notification === 'object' && notification.element) {
+        notification = notification.element;
+      }
+
+      if (typeof notification === 'string') {
+        // Find by message
+        notification = this.notifications.find(n => n.message === notification)?.element;
+      }
+
+      if (!notification || !notification.classList.contains('notification')) return;
+
+      notification.classList.remove('show');
+      notification.classList.add('hiding');
+
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+        // Remove from notifications array
+        this.notifications = this.notifications.filter(n => n.element !== notification);
+      }, 300);
+    }
+
+    hideAll() {
+      this.notifications.forEach(notification => this.hide(notification));
+    }
+
+    enforceLimit() {
+      while (this.notifications.length > this.maxNotifications) {
+        const oldest = this.notifications.shift();
+        this.hide(oldest);
+      }
+    }
+
+    getDefaultIcon(type) {
+      switch (type) {
+        case 'success':
+          return '<i class="fa-solid fa-check"></i>';
+        case 'error':
+          return '<i class="fa-solid fa-times"></i>';
+        case 'warning':
+          return '<i class="fa-solid fa-exclamation-triangle"></i>';
+        case 'info':
+        default:
+          return '<i class="fa-solid fa-info"></i>';
+      }
+    }
+
+    // Convenience methods
+    success(message, options = {}) {
+      return this.show(message, 'success', options);
+    }
+
+    error(message, options = {}) {
+      return this.show(message, 'error', options);
+    }
+
+    warning(message, options = {}) {
+      return this.show(message, 'warning', options);
+    }
+
+    info(message, options = {}) {
+      return this.show(message, 'info', options);
+    }
+  }
+
+  // Global notification manager instance
+  const notifications = new NotificationManager();
+
+  // Legacy compatibility functions
   function showNotification(message, type = 'info', duration = 5000) {
-    const notification = document.createElement('div');
-    notification.className = `popup ${type}`;
-    notification.innerHTML = `
-      <div class="popup-content">
-        <p id="popupMessage">${message}</p>
-        <button id="popupClose">×</button>
-      </div>
-    `;
-
-    document.body.appendChild(notification);
-
-    // Show with animation
-    setTimeout(() => notification.classList.add('show'), 100);
-
-    // Auto-hide
-    const hideTimeout = setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    }, duration);
-
-    // Close button
-    notification.querySelector('#popupClose').addEventListener('click', () => {
-      clearTimeout(hideTimeout);
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    });
+    const options = { duration };
+    switch (type) {
+      case 'success':
+        return notifications.success(message, options);
+      case 'error':
+        return notifications.error(message, options);
+      case 'warning':
+        return notifications.warning(message, options);
+      default:
+        return notifications.info(message, options);
+    }
   }
 
   // Sound System
@@ -492,23 +1309,178 @@
   let splitbookmarksPdfFile = null;
   let splitnPdfFile = null;
 
-  // Shapes tool variables
-  let shapesPdfFile = null;
-  let shapesPdfDoc = null;
-  let currentShapesPage = 1;
-  let shapes = [];
-  let currentShapeTool = null;
-  let isDrawingShape = false;
-  let shapeStartX, shapeStartY;
+  // Mix Pages variables
+  let mixPagesFiles = [];
+  let mixPagesPattern = [];
+  let mixPagesRepeat = 1;
+  let mixPagesPreviewData = [];
+  let mixPagesFileData = [];
+  let mixPagesPdfDocs = [];
+  let mixPagesOrder = [];
+  let mixPagesFileBuffers = [];
+  let mixPagesFilePageCounts = [];
+  let mixPagesLoaded = false;
+  let mixPagesPatternString = '';
+  let mixPagesFileNames = [];
+  let mixPagesFileSizes = [];
+  let mixPagesFileIndex = 0;
+  let mixPagesTotalPages = 0;
+  let mixPagesPatternArray = [];
+  let mixPagesCurrentFileIndex = 0;
+  let mixPagesPatternValid = false;
+  let mixPagesFileIndexMap = [];
+  let mixPagesTotalOutputPages = 0;
 
-  // Fill Forms variables
-  let fillFormsPdfFile = null;
-  let fillFormsPdfDoc = null;
-  let formFieldsData = [];
+  // Enhanced Viewer variables
+  let currentPageNumber = 1;
+  let totalPagesCount = 0;
+  let isFullscreen = false;
+  let originalViewport = null;
 
-  // Extract Images variables
-  let extractImagesPdfDoc = null;
-  let extractedImages = [];
+  // Enhanced Annotation variables
+  let currentAnnotationColor = '#ffff00';
+  let currentAnnotationSize = '20';
+  let currentAnnotationFont = 'Helvetica';
+  let annotationHyperlinks = [];
+
+  // Image Editing variables
+  let editImagesPdfDoc = null;
+  let currentEditImagesPage = 1;
+  let embeddedImages = [];
+  let selectedImageIndex = -1;
+  let imageTransform = { scale: 1, opacity: 1, x: 0, y: 0 };
+
+  // Background Images variables
+  let backgroundImagesPdfFile = null;
+  let backgroundImageFile = null;
+  let backgroundImageData = null;
+
+  // Stamps variables
+  let stampsPdfFile = null;
+  let predefinedStamps = {
+    'CONFIDENTIAL': { text: 'CONFIDENTIAL', color: '#ff0000', angle: -15 },
+    'APPROVED': { text: 'APPROVED', color: '#00aa00', angle: 0 },
+    'REJECTED': { text: 'REJECTED', color: '#ff0000', angle: 0 },
+    'DRAFT': { text: 'DRAFT', color: '#ff8800', angle: 0 },
+    'URGENT': { text: 'URGENT', color: '#ff0000', angle: 0 },
+    'COMPLETED': { text: 'COMPLETED', color: '#00aa00', angle: 0 },
+    'REVIEW': { text: 'REVIEW', color: '#0088ff', angle: 0 },
+    'FINAL': { text: 'FINAL', color: '#00aa00', angle: 0 },
+    'VOID': { text: 'VOID', color: '#ff0000', angle: 0 },
+    'PAID': { text: 'PAID', color: '#00aa00', angle: 0 }
+  };
+
+  // Multi-Signature variables
+  let multiSignaturePdfFile = null;
+  let signaturePositions = [];
+  let signatureStyle = 'text';
+  let signatureImageData = null;
+
+  // Event Listeners for New Image Tools
+  document.getElementById('editImagesChoose').addEventListener('click', () => document.getElementById('editImagesInput').click());
+  document.getElementById('editImagesInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { editImagesPdfFile = f; await loadEditImagesPdf(f); }
+  });
+  document.getElementById('editImagesRun').addEventListener('click', () => exportEditedImagesPdf());
+  document.getElementById('editImagesDrop').addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    const f = ev.dataTransfer.files[0];
+    if(f) { editImagesPdfFile = f; await loadEditImagesPdf(f); }
+  });
+  document.getElementById('editImagesPageSelect').addEventListener('change', (e) => {
+    currentEditImagesPage = Number(e.target.value);
+    renderEditImagesPage();
+  });
+  document.getElementById('selectImageBtn').addEventListener('click', () => setEditImageTool('select'));
+  document.getElementById('resizeImageBtn').addEventListener('click', () => setEditImageTool('resize'));
+  document.getElementById('moveImageBtn').addEventListener('click', () => setEditImageTool('move'));
+  document.getElementById('deleteImageBtn').addEventListener('click', () => deleteSelectedImage());
+  document.getElementById('resetImageBtn').addEventListener('click', () => resetImageTransforms());
+  document.getElementById('imageScale').addEventListener('input', (e) => {
+    imageTransform.scale = Number(e.target.value);
+    document.getElementById('imageScaleValue').textContent = Math.round(imageTransform.scale * 100) + '%';
+    renderEditImagesPage();
+  });
+  document.getElementById('imageOpacity').addEventListener('input', (e) => {
+    imageTransform.opacity = Number(e.target.value);
+    document.getElementById('imageOpacityValue').textContent = Math.round(imageTransform.opacity * 100) + '%';
+    renderEditImagesPage();
+  });
+
+  // Background Images Event Listeners
+  document.getElementById('backgroundImagesPdfChoose').addEventListener('click', () => document.getElementById('backgroundImagesPdfInput').click());
+  document.getElementById('backgroundImagesPdfInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { backgroundImagesPdfFile = f; Swal.fire('Loaded','PDF loaded for background images','success'); }
+  });
+  document.getElementById('backgroundImagesChoose').addEventListener('click', () => document.getElementById('backgroundImagesInput').click());
+  document.getElementById('backgroundImagesInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { backgroundImageFile = f; await loadBackgroundImage(f); }
+  });
+  document.getElementById('backgroundImagesRun').addEventListener('click', () => addBackgroundImages());
+  document.getElementById('backgroundImagesDrop').addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    const f = ev.dataTransfer.files[0];
+    if(f) { backgroundImagesPdfFile = f; Swal.fire('Loaded','PDF loaded for background images','success'); }
+  });
+  document.getElementById('backgroundOpacity').addEventListener('input', (e) => {
+    document.getElementById('backgroundOpacityValue').textContent = Math.round(Number(e.target.value) * 100) + '%';
+  });
+
+  // Stamps Event Listeners
+  document.getElementById('stampsChoose').addEventListener('click', () => document.getElementById('stampsInput').click());
+  document.getElementById('stampsInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { stampsPdfFile = f; await loadStampsPdf(f); }
+  });
+  document.getElementById('stampsRun').addEventListener('click', () => addStampsToPdf());
+  document.getElementById('stampsDrop').addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    const f = ev.dataTransfer.files[0];
+    if(f) { stampsPdfFile = f; await loadStampsPdf(f); }
+  });
+  document.getElementById('stampType').addEventListener('change', (e) => {
+    const customInput = document.getElementById('customStampText');
+    if(e.target.value === 'custom') {
+      customInput.style.display = 'inline-block';
+    } else {
+      customInput.style.display = 'none';
+    }
+    updateStampPreview();
+  });
+  document.getElementById('customStampText').addEventListener('input', () => updateStampPreview());
+  document.getElementById('stampColor').addEventListener('change', () => updateStampPreview());
+  document.getElementById('stampSize').addEventListener('change', () => updateStampPreview());
+  document.getElementById('stampPosition').addEventListener('change', () => updateStampPreview());
+  document.getElementById('stampOpacity').addEventListener('input', (e) => {
+    document.getElementById('stampOpacityValue').textContent = Math.round(Number(e.target.value) * 100) + '%';
+  });
+
+  // Multi-Signature Event Listeners
+  document.getElementById('multiSignatureChoose').addEventListener('click', () => document.getElementById('multiSignatureInput').click());
+  document.getElementById('multiSignatureInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { multiSignaturePdfFile = f; await loadMultiSignaturePdf(f); }
+  });
+  document.getElementById('multiSignatureRun').addEventListener('click', () => addMultiSignatures());
+  document.getElementById('multiSignatureDrop').addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    const f = ev.dataTransfer.files[0];
+    if(f) { multiSignaturePdfFile = f; await loadMultiSignaturePdf(f); }
+  });
+  document.getElementById('signatureStyle').addEventListener('change', (e) => {
+    signatureStyle = e.target.value;
+    toggleSignatureStyle();
+  });
+  document.getElementById('signatureTextInput').addEventListener('input', () => updateSignaturePreview());
+  document.getElementById('signatureImageBtn').addEventListener('click', () => document.getElementById('signatureImageInput').click());
+  document.getElementById('signatureImageInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(f) { signatureImageData = await f.arrayBuffer(); updateSignaturePreview(); }
+  });
+  document.getElementById('addSignaturePos').addEventListener('click', () => addSignaturePosition());
 
   // Chatbot variables
   let chatbotFile = null;
@@ -529,10 +1501,16 @@
   }
   function hideOverlay() { overlay.classList.remove('show'); loaderProgress.textContent=''; }
 
-  // Utility: show success/warn with cute notifications
-  function toastSuccess(msg){ Swal.fire({toast:true,position:'top-end',icon:'success',title:msg,showConfirmButton:false,timer:1800}) }
-  function toastError(msg){ Swal.fire({toast:true,position:'top-end',icon:'error',title:msg,showConfirmButton:false,timer:2500}) }
-  function confirmDialog(title,text){ return Swal.fire({title, text, icon:'question', showCancelButton:true}).then(r=>r.isConfirmed) }
+  // Utility: show success/warn with cute notifications (now using unified system)
+  function toastSuccess(msg, options = {}) {
+    return notifications.success(msg, { duration: 1800, ...options });
+  }
+  function toastError(msg, options = {}) {
+    return notifications.error(msg, { duration: 2500, ...options });
+  }
+  function confirmDialog(title, text) {
+    return Swal.fire({ title, text, icon: 'question', showCancelButton: true }).then(r => r.isConfirmed);
+  }
 
   // Theme toggle
   const themeToggle = document.getElementById('themeToggle');
@@ -710,22 +1688,51 @@
     });
   });
 
-  // Hamburger menu
-  document.getElementById('hamburger').addEventListener('click', ()=>{
-    const sidebar = document.querySelector('.sidebar');
+  // Hamburger menu functionality
+  const hamburger = document.getElementById('hamburger');
+  const sidebar = document.querySelector('.sidebar');
+
+  hamburger.addEventListener('click', (e)=>{
+    e.stopPropagation();
     sidebar.classList.toggle('show');
+    hamburger.classList.toggle('active');
+
+    // Update aria-expanded for accessibility
+    const isExpanded = sidebar.classList.contains('show');
+    hamburger.setAttribute('aria-expanded', isExpanded);
   });
 
   // Close sidebar when clicking outside on mobile
   document.addEventListener('click', (e)=>{
     if(window.innerWidth <= 768){
-      const sidebar = document.querySelector('.sidebar');
-      const hamburger = document.getElementById('hamburger');
       if(!sidebar.contains(e.target) && e.target !== hamburger && !hamburger.contains(e.target)){
         sidebar.classList.remove('show');
+        hamburger.classList.remove('active');
+        hamburger.setAttribute('aria-expanded', 'false');
       }
     }
   });
+
+  // Close sidebar on escape key
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && sidebar.classList.contains('show')){
+      sidebar.classList.remove('show');
+      hamburger.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Handle window resize
+  window.addEventListener('resize', ()=>{
+    if(window.innerWidth > 768){
+      sidebar.classList.remove('show');
+      hamburger.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Initialize hamburger state
+  hamburger.setAttribute('aria-expanded', 'false');
 
   // Quick upload and global file input
   const globalInput = document.getElementById('globalFileInput');
@@ -748,33 +1755,162 @@
     storeRecentFiles(files);
   });
 
-  // Drag & drop (global)
-  const dropAreaBtn = document.getElementById('dropAreaBtn');
+  // Initialize Modern Dropzone for Viewer
   const viewerDrop = document.getElementById('viewerDrop');
-  ['dragenter','dragover'].forEach(e => {
-    viewerDrop.addEventListener(e, (ev)=>{ ev.preventDefault(); viewerDrop.style.borderColor='var(--accent)'; });
+  const viewerDropzone = new ModernDropzone(viewerDrop, {
+    acceptedTypes: ['application/pdf'],
+    maxFiles: 1,
+    onFilesSelected: async (files) => {
+      const file = files[0];
+      if (file && file.type === 'application/pdf') {
+        await openInViewer(file);
+      }
+    },
+    onUploadProgress: (progress) => {
+      console.log('Upload progress:', progress + '%');
+    },
+    onUploadComplete: (files) => {
+      showNotification('File uploaded successfully!', 'success');
+    },
+    onError: (error) => {
+      showNotification(error.message, 'error');
+    }
   });
-  ['dragleave','drop'].forEach(e => {
-    viewerDrop.addEventListener(e, (ev)=>{ ev.preventDefault(); viewerDrop.style.borderColor=''; });
-  });
-  viewerDrop.addEventListener('drop', async (ev)=>{
-    const f = ev.dataTransfer.files[0];
-    if(!f) return;
-    if(f.type==='application/pdf') await openInViewer(f);
-    else Swal.fire('Unsupported', 'Please drop a PDF file', 'warning');
-  });
+
+  // Legacy drag & drop (global) - keep for backward compatibility
+  const dropAreaBtn = document.getElementById('dropAreaBtn');
 
   // ---------- Viewer Implementation ----------
   const canvas = document.getElementById('pdf-canvas');
   const ctx = canvas.getContext('2d');
   const thumbsBox = document.getElementById('thumbs');
 
+  // Enhanced Viewer Event Listeners
   document.getElementById('viewerOpenBtn').addEventListener('click', ()=> document.getElementById('globalFileInput').click());
+  document.getElementById('prevPageBtn').addEventListener('click', ()=> navigateToPage(currentPageNumber - 1));
+  document.getElementById('nextPageBtn').addEventListener('click', ()=> navigateToPage(currentPageNumber + 1));
+  document.getElementById('pageInput').addEventListener('change', (e)=> navigateToPage(Number(e.target.value)));
+  document.getElementById('fitWidthBtn').addEventListener('click', ()=> fitToWidth());
+  document.getElementById('fitPageBtn').addEventListener('click', ()=> fitToPage());
   document.getElementById('zoomInBtn').addEventListener('click', ()=> setScale(currentScale + 0.1));
   document.getElementById('zoomOutBtn').addEventListener('click', ()=> setScale(Math.max(0.2, currentScale - 0.1)));
   document.getElementById('zoomRange').addEventListener('input', (e)=> setScale(e.target.value/100));
-
+  document.getElementById('zoomPreset').addEventListener('change', (e)=> setScale(Number(e.target.value)));
+  document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
   document.getElementById('renderAllBtn').addEventListener('click', ()=> renderThumbnails());
+
+  // Enhanced Viewer Functions
+  async function navigateToPage(pageNum) {
+    if (!currentPdfJsDoc || pageNum < 1 || pageNum > totalPagesCount) return;
+
+    try {
+      showOverlay(`Loading page ${pageNum}...`);
+      const page = await currentPdfJsDoc.getPage(pageNum);
+      await renderPageToCanvas(page, canvas, currentScale);
+      currentPageNumber = pageNum;
+      document.getElementById('pageInput').value = pageNum;
+      hideOverlay();
+      toastSuccess(`Page ${pageNum} loaded`);
+    } catch(err) {
+      hideOverlay();
+      toastError('Failed to load page: ' + err.message);
+    }
+  }
+
+  function fitToWidth() {
+    if (!currentPdfJsDoc) return;
+
+    const container = canvas.parentElement;
+    const containerWidth = container.clientWidth - 40; // Account for padding
+
+    // Calculate scale to fit width
+    currentPdfJsDoc.getPage(currentPageNumber).then(page => {
+      const viewport = page.getViewport({scale: 1.0});
+      const scale = containerWidth / viewport.width;
+      setScale(scale);
+    });
+  }
+
+  function fitToPage() {
+    if (!currentPdfJsDoc) return;
+
+    const container = canvas.parentElement;
+    const containerWidth = container.clientWidth - 40;
+    const containerHeight = container.clientHeight - 40;
+
+    currentPdfJsDoc.getPage(currentPageNumber).then(page => {
+      const viewport = page.getViewport({scale: 1.0});
+      const scaleX = containerWidth / viewport.width;
+      const scaleY = containerHeight / viewport.height;
+      const scale = Math.min(scaleX, scaleY);
+      setScale(scale);
+    });
+  }
+
+  function toggleFullscreen() {
+    const viewerContainer = document.querySelector('.viewer');
+    const canvasContainer = document.querySelector('.canvas-wrap');
+
+    if (!isFullscreen) {
+      // Enter fullscreen
+      originalViewport = {
+        width: canvasContainer.style.width,
+        height: canvasContainer.style.height,
+        display: canvasContainer.style.display
+      };
+
+      canvasContainer.style.position = 'fixed';
+      canvasContainer.style.top = '0';
+      canvasContainer.style.left = '0';
+      canvasContainer.style.width = '100vw';
+      canvasContainer.style.height = '100vh';
+      canvasContainer.style.zIndex = '9999';
+      canvasContainer.style.background = 'var(--bg)';
+      canvasContainer.style.display = 'flex';
+      canvasContainer.style.alignItems = 'center';
+      canvasContainer.style.justifyContent = 'center';
+
+      // Hide other elements
+      document.querySelector('.sidebar').style.display = 'none';
+      document.querySelector('.topbar').style.display = 'none';
+
+      isFullscreen = true;
+      document.getElementById('fullscreenBtn').innerHTML = '<i class="fa-solid fa-compress"></i>';
+      document.getElementById('fullscreenBtn').title = 'Exit Fullscreen';
+
+      // Fit to screen
+      setTimeout(() => fitToPage(), 100);
+    } else {
+      // Exit fullscreen
+      canvasContainer.style.position = '';
+      canvasContainer.style.top = '';
+      canvasContainer.style.left = '';
+      canvasContainer.style.width = originalViewport.width;
+      canvasContainer.style.height = originalViewport.height;
+      canvasContainer.style.zIndex = '';
+      canvasContainer.style.background = '';
+      canvasContainer.style.display = originalViewport.display;
+
+      // Show hidden elements
+      document.querySelector('.sidebar').style.display = '';
+      document.querySelector('.topbar').style.display = '';
+
+      isFullscreen = false;
+      document.getElementById('fullscreenBtn').innerHTML = '<i class="fa-solid fa-expand"></i>';
+      document.getElementById('fullscreenBtn').title = 'Fullscreen';
+    }
+  }
+
+  // Enhanced setScale function
+  function setScale(scale){
+    currentScale = scale;
+    document.getElementById('zoomRange').value = Math.round(scale*100);
+    document.getElementById('zoomPreset').value = scale;
+
+    if(currentPdfJsDoc && currentPageNumber) {
+      currentPdfJsDoc.getPage(currentPageNumber).then(page => renderPageToCanvas(page, canvas, currentScale));
+    }
+  }
 
   async function openInViewer(file){
     try{
@@ -782,11 +1918,23 @@
       const arrayBuffer = await file.arrayBuffer();
       currentPdfBytes = new Uint8Array(arrayBuffer);
       currentPdfJsDoc = await pdfjsLib.getDocument({data: currentPdfBytes}).promise;
+
+      // Initialize enhanced viewer variables
+      totalPagesCount = currentPdfJsDoc.numPages;
+      currentPageNumber = 1;
+
+      // Update UI elements
+      document.getElementById('totalPages').textContent = totalPagesCount;
+      document.getElementById('pageInput').value = currentPageNumber;
+      document.getElementById('pageInput').max = totalPagesCount;
+
       const page = await currentPdfJsDoc.getPage(1);
       await renderPageToCanvas(page, canvas, 1.0);
       hideOverlay();
+
       // generate small thumbs for pages 1..min(8,nPages)
       renderThumbsPreview( Math.min(8, currentPdfJsDoc.numPages) );
+
       // save recent
       storeRecentFiles([file]);
       showNotification('PDF loaded successfully in Viewer', 'success');
@@ -1949,12 +3097,20 @@
     currentAnnotatePage = Number(e.target.value);
     renderAnnotatePage();
   });
+  // Enhanced Annotation Event Listeners
   document.getElementById('highlightBtn').addEventListener('click', ()=> setTool('highlight'));
   document.getElementById('underlineBtn').addEventListener('click', ()=> setTool('underline'));
+  document.getElementById('strikethroughBtn').addEventListener('click', ()=> setTool('strikethrough'));
   document.getElementById('noteBtn').addEventListener('click', ()=> setTool('note'));
   document.getElementById('penBtn').addEventListener('click', ()=> setTool('pen'));
+  document.getElementById('whiteoutBtn').addEventListener('click', ()=> setTool('whiteout'));
   document.getElementById('eraserBtn').addEventListener('click', ()=> setTool('eraser'));
   document.getElementById('clearBtn').addEventListener('click', ()=> { annotations = []; renderAnnotations(); });
+  document.getElementById('annotationColor').addEventListener('change', (e)=> currentAnnotationColor = e.target.value);
+  document.getElementById('annotationSize').addEventListener('change', (e)=> currentAnnotationSize = e.target.value);
+  document.getElementById('annotationFont').addEventListener('change', (e)=> currentAnnotationFont = e.target.value);
+  document.getElementById('hyperlinkBtn').addEventListener('click', ()=> addHyperlink());
+  document.getElementById('removeHyperlinkBtn').addEventListener('click', ()=> removeHyperlink());
 
   const annotateCanvas = document.getElementById('annotateCanvas');
   annotateCanvas.addEventListener('mousedown', (e)=> {
@@ -1990,10 +3146,21 @@
     const rect = annotateCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    if(currentTool === 'highlight' || currentTool === 'underline'){
+
+    if(currentTool === 'highlight' || currentTool === 'underline' || currentTool === 'strikethrough' || currentTool === 'whiteout'){
       const w = x - startX;
       const h = y - startY;
-      annotations.push({type: currentTool, x: startX, y: startY, w, h, page: currentAnnotatePage});
+      annotations.push({
+        type: currentTool,
+        x: startX,
+        y: startY,
+        w,
+        h,
+        page: currentAnnotatePage,
+        color: currentAnnotationColor,
+        size: currentAnnotationSize,
+        font: currentAnnotationFont
+      });
       renderAnnotations();
     }
     isDrawing = false;
@@ -2610,17 +3777,41 @@
     ctx.clearRect(0,0,overlay.width,overlay.height);
     annotations.forEach(ann => {
       if(ann.page !== currentAnnotatePage) return;
-      ctx.strokeStyle = ann.color || 'yellow';
-      ctx.lineWidth = ann.lineWidth || 2;
+
+      // Use current annotation settings for new annotations
+      const color = ann.color || currentAnnotationColor;
+      const size = ann.size || currentAnnotationSize;
+      const font = ann.font || currentAnnotationFont;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size / 8; // Scale line width based on size
+      ctx.font = `${size}px ${font}`;
+
       if(ann.type === 'highlight'){
-        ctx.fillStyle = 'rgba(255,255,0,0.3)';
+        ctx.fillStyle = `${color}33`; // Add transparency
         ctx.fillRect(ann.x, ann.y, ann.w, ann.h);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ann.x, ann.y, ann.w, ann.h);
       } else if(ann.type === 'underline'){
         ctx.beginPath();
-        ctx.moveTo(ann.x, ann.y);
-        ctx.lineTo(ann.x + ann.w, ann.y);
+        ctx.moveTo(ann.x, ann.y + parseInt(size));
+        ctx.lineTo(ann.x + ann.w, ann.y + parseInt(size));
         ctx.stroke();
+      } else if(ann.type === 'strikethrough'){
+        ctx.beginPath();
+        ctx.moveTo(ann.x, ann.y + parseInt(size) / 2);
+        ctx.lineTo(ann.x + ann.w, ann.y + parseInt(size) / 2);
+        ctx.stroke();
+      } else if(ann.type === 'whiteout'){
+        ctx.fillStyle = 'white';
+        ctx.fillRect(ann.x, ann.y, ann.w, ann.h);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ann.x, ann.y, ann.w, ann.h);
       } else if(ann.type === 'path'){
+        ctx.strokeStyle = ann.color || color;
+        ctx.lineWidth = ann.lineWidth || (size / 8);
         ctx.beginPath();
         ann.points.forEach((p, i) => {
           if(i===0) ctx.moveTo(p.x, p.y);
@@ -2629,6 +3820,10 @@
         ctx.stroke();
       }
     });
+
+    // Render hyperlinks
+    renderHyperlinks();
+
     // For notes, add divs.
     const noteContainer = document.getElementById('noteContainer');
     noteContainer.innerHTML = '';
@@ -2638,13 +3833,182 @@
         div.style.position = 'absolute';
         div.style.left = ann.x + 'px';
         div.style.top = ann.y + 'px';
-        div.style.background = 'yellow';
-        div.style.padding = '4px';
-        div.style.border = '1px solid black';
-        div.style.fontSize = '12px';
+        div.style.background = 'rgba(255, 255, 0, 0.8)';
+        div.style.padding = '4px 8px';
+        div.style.border = `2px solid ${ann.color || currentAnnotationColor}`;
+        div.style.borderRadius = '4px';
+        div.style.fontSize = (ann.size || currentAnnotationSize) + 'px';
+        div.style.fontFamily = ann.font || currentAnnotationFont;
+        div.style.color = 'black';
+        div.style.cursor = 'move';
+        div.style.maxWidth = '200px';
+        div.style.wordWrap = 'break-word';
         div.contentEditable = true;
         div.textContent = ann.text;
-        div.addEventListener('input', (e)=> ann.text = e.target.textContent);
+        div.addEventListener('input', (e)=> {
+          ann.text = e.target.textContent;
+          ann.size = currentAnnotationSize;
+          ann.font = currentAnnotationFont;
+          ann.color = currentAnnotationColor;
+        });
+        div.addEventListener('blur', (e)=> {
+          if(!div.textContent.trim()) {
+            annotations = annotations.filter(a => a !== ann);
+            renderAnnotations();
+          }
+        });
+        noteContainer.appendChild(div);
+      }
+    });
+  }
+
+  // Add Hyperlink
+  function addHyperlink(){
+    const url = prompt('Enter URL for hyperlink:');
+    if(!url) return;
+
+    Swal.fire({
+      title: 'Add Hyperlink',
+      html: `
+        <input id="hyperlinkUrl" type="url" value="${url}" placeholder="https://example.com" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);margin-bottom:10px;">
+        <input id="hyperlinkText" type="text" placeholder="Link text (optional)" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);">
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Add Link',
+      preConfirm: () => {
+        const linkUrl = document.getElementById('hyperlinkUrl').value;
+        const linkText = document.getElementById('hyperlinkText').value || linkUrl;
+        if(!linkUrl) {
+          Swal.showValidationMessage('URL is required');
+          return false;
+        }
+        return { url: linkUrl, text: linkText };
+      }
+    }).then((result) => {
+      if(result.isConfirmed) {
+        const { url, text } = result.value;
+        annotationHyperlinks.push({
+          url,
+          text,
+          page: currentAnnotatePage,
+          x: 100,
+          y: 100,
+          width: 100,
+          height: 20
+        });
+        renderHyperlinks();
+        toastSuccess('Hyperlink added');
+      }
+    });
+  }
+
+  // Remove Hyperlink
+  function removeHyperlink(){
+    if(annotationHyperlinks.length === 0) {
+      toastError('No hyperlinks to remove');
+      return;
+    }
+
+    const linkOptions = annotationHyperlinks
+      .filter(link => link.page === currentAnnotatePage)
+      .map((link, index) => `${index + 1}. ${link.text} (${link.url})`);
+
+    if(linkOptions.length === 0) {
+      toastError('No hyperlinks on current page');
+      return;
+    }
+
+    Swal.fire({
+      title: 'Remove Hyperlink',
+      input: 'select',
+      inputOptions: Object.fromEntries(
+        linkOptions.map((option, index) => [index, option])
+      ),
+      inputPlaceholder: 'Select hyperlink to remove',
+      showCancelButton: true,
+      confirmButtonText: 'Remove'
+    }).then((result) => {
+      if(result.isConfirmed) {
+        const index = result.value;
+        annotationHyperlinks.splice(
+          annotationHyperlinks.findIndex((link, i) =>
+            link.page === currentAnnotatePage &&
+            linkOptions[index].includes(link.text)
+          ), 1
+        );
+        renderHyperlinks();
+        toastSuccess('Hyperlink removed');
+      }
+    });
+  }
+
+  // Render Hyperlinks
+  function renderHyperlinks(){
+    const noteContainer = document.getElementById('noteContainer');
+    // Remove existing hyperlinks
+    const existingLinks = noteContainer.querySelectorAll('.hyperlink');
+    existingLinks.forEach(link => link.remove());
+
+    annotationHyperlinks.forEach((link, index) => {
+      if(link.page === currentAnnotatePage) {
+        const div = document.createElement('div');
+        div.className = 'hyperlink';
+        div.style.position = 'absolute';
+        div.style.left = link.x + 'px';
+        div.style.top = link.y + 'px';
+        div.style.width = link.width + 'px';
+        div.style.height = link.height + 'px';
+        div.style.background = 'rgba(0, 100, 255, 0.1)';
+        div.style.border = '1px dashed blue';
+        div.style.borderRadius = '4px';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.fontSize = '12px';
+        div.style.color = 'blue';
+        div.style.cursor = 'pointer';
+        div.style.fontFamily = currentAnnotationFont;
+        div.textContent = link.text;
+        div.title = `Click to open: ${link.url}`;
+
+        div.addEventListener('click', () => {
+          window.open(link.url, '_blank');
+        });
+
+        div.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          Swal.fire({
+            title: 'Hyperlink Options',
+            html: `
+              <input id="editLinkUrl" type="url" value="${link.url}" placeholder="https://example.com" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);margin-bottom:10px;">
+              <input id="editLinkText" type="text" value="${link.text}" placeholder="Link text" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);">
+            `,
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Update',
+            denyButtonText: 'Delete',
+            preConfirm: () => {
+              const newUrl = document.getElementById('editLinkUrl').value;
+              const newText = document.getElementById('editLinkText').value;
+              if(!newUrl || !newText) {
+                Swal.showValidationMessage('Both URL and text are required');
+                return false;
+              }
+              return { url: newUrl, text: newText };
+            }
+          }).then((result) => {
+            if(result.isConfirmed) {
+              link.url = result.value.url;
+              link.text = result.value.text;
+              renderHyperlinks();
+            } else if(result.isDenied) {
+              annotationHyperlinks.splice(index, 1);
+              renderHyperlinks();
+              toastSuccess('Hyperlink removed');
+            }
+          });
+        });
+
         noteContainer.appendChild(div);
       }
     });
@@ -3526,6 +4890,71 @@
     duration: 900,
     easing: 'spring(1,80,10,0)'
   });
+
+  // Demo function to test modern dropzone
+  window.testModernDropzone = function() {
+    // Create a test dropzone element
+    const testContainer = document.createElement('div');
+    testContainer.id = 'test-dropzone';
+    testContainer.style.cssText = `
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      width: 320px;
+      height: 200px;
+      z-index: 10000;
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      padding: 16px;
+    `;
+
+    document.body.appendChild(testContainer);
+
+    // Initialize modern dropzone
+    const testDropzone = new ModernDropzone(testContainer, {
+      acceptedTypes: ['application/pdf', 'image/*', 'text/plain'],
+      maxFiles: 3,
+      onFilesSelected: (files) => {
+        console.log('Files selected:', files);
+        showNotification(`Selected ${files.length} file(s) for testing`, 'info');
+
+        // Simulate upload after 1 second
+        setTimeout(() => {
+          testDropzone.simulateUpload();
+        }, 1000);
+      },
+      onUploadProgress: (progress) => {
+        console.log('Upload progress:', progress + '%');
+      },
+      onUploadComplete: (files) => {
+        console.log('Upload complete:', files);
+        showNotification('Demo upload completed successfully!', 'success');
+      },
+      onError: (error) => {
+        console.error('Upload error:', error);
+        showNotification(error.message, 'error');
+      }
+    });
+
+    showNotification('Test dropzone created! Try dragging files or clicking to browse.', 'info');
+
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (testContainer.parentNode) {
+        testContainer.parentNode.removeChild(testContainer);
+        showNotification('Test dropzone removed', 'info');
+      }
+    }, 10000);
+  };
+
+  // Add demo button to sidebar for testing
+  const demoBtn = document.createElement('button');
+  demoBtn.className = 'btn';
+  demoBtn.innerHTML = '<i class="fa-solid fa-flask"></i> Test Dropzone';
+  demoBtn.style.cssText = 'margin-top: 8px; background: linear-gradient(45deg, #ff6b6b, #ffa500);';
+  demoBtn.addEventListener('click', window.testModernDropzone);
+  document.querySelector('.sidebar > div:last-child').appendChild(demoBtn);
 
   // Helpful: load sample PDF from remote (disabled by default)
   // END main IIFE
