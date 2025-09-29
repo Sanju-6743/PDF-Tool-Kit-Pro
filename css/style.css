@@ -70,8 +70,116 @@ html,body{height:100%; margin:0; font-family: 'Inter', 'Poppins', system-ui, -ap
 .nav{display:flex; flex-direction:column; gap:6px}
 .nav-group{margin-bottom:16px}
 .nav-title{font-size:12px; font-weight:700; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px}
-.nav button{display:flex; align-items:center; gap:12px; padding:10px; border-radius:10px; border:0; background:transparent; color:var(--muted); text-align:left; width:100%; cursor:pointer}
-.nav button.active{background:linear-gradient(90deg,var(--accent), #9aaeff); color:white; box-shadow: 0 8px 24px rgba(91,108,255,0.12)}
+.nav button{
+  display:flex; align-items:center; gap:12px; padding:10px; border-radius:10px; border:0; background:transparent; color:var(--muted); text-align:left; width:100%; cursor:pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  transform: translateX(0) translateY(0);
+  border-left: 3px solid transparent;
+}
+.nav button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(91, 108, 255, 0.1), transparent);
+  transition: left 0.5s ease;
+  z-index: 1;
+}
+.nav button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  transform: translateY(-50%) scaleX(0);
+  transition: all 0.3s ease;
+  border-radius: 1px;
+}
+.nav button:hover{
+  background: linear-gradient(135deg, rgba(91, 108, 255, 0.08), rgba(91, 108, 255, 0.04));
+  color: var(--accent);
+  transform: translateX(6px) translateY(-1px);
+  box-shadow: 0 6px 20px rgba(91, 108, 255, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-left-color: var(--accent);
+}
+.nav button:hover::before {
+  left: 100%;
+}
+.nav button:hover::after {
+  width: 20px;
+  transform: translateY(-50%) scaleX(1);
+}
+.nav button:hover i {
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}
+.nav button.active{
+  background: linear-gradient(90deg, var(--accent), #9aaeff);
+  color: white;
+  box-shadow: 0 8px 24px rgba(91, 108, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateX(3px) translateY(-1px);
+  border-left-color: rgba(255, 255, 255, 0.3);
+}
+.nav button.active::after {
+  width: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateY(-50%) scaleX(1);
+}
+.nav button.active:hover{
+  background: linear-gradient(90deg, var(--accent), #9aaeff);
+  transform: translateX(6px) translateY(-2px);
+  box-shadow: 0 12px 32px rgba(91, 108, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Search Container */
+.search-container {
+  margin-bottom: 16px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(24, 30, 40, 0.04);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(91, 108, 255, 0.12);
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
 
 /* Content */
 .content{

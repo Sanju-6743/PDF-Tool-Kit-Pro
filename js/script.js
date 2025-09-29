@@ -574,6 +574,115 @@
   soundToggle.querySelector('i').className = enableSounds ? 'fa-solid fa-volume-up' : 'fa-solid fa-volume-mute';
   soundToggle.title = enableSounds ? 'Disable notification sounds' : 'Enable notification sounds';
 
+  // Search functionality
+  const toolsSearch = document.getElementById('toolsSearch');
+  const navGroups = document.querySelectorAll('#toolNav .nav-group');
+
+  // Store original state for reset functionality
+  const originalStates = new Map();
+
+  // Initialize original states
+  navGroups.forEach(group => {
+    const buttons = group.querySelectorAll('button');
+    originalStates.set(group, {
+      groupElement: group,
+      buttons: Array.from(buttons),
+      titleElement: group.querySelector('.nav-title')
+    });
+  });
+
+  // Search input event listener
+  toolsSearch.addEventListener('input', (e) => {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    filterTools(searchTerm);
+  });
+
+  // Filter tools based on search term
+  function filterTools(searchTerm) {
+    let visibleGroups = 0;
+
+    navGroups.forEach(groupData => {
+      const group = originalStates.get(groupData);
+      const groupElement = group.groupElement;
+      const titleElement = group.titleElement;
+      const buttons = group.buttons;
+
+      let visibleButtons = 0;
+
+      buttons.forEach(button => {
+        const buttonText = button.textContent.toLowerCase();
+        const toolName = button.dataset.tool;
+
+        // Check if button text or tool name matches search term
+        const matches = searchTerm === '' ||
+                       buttonText.includes(searchTerm) ||
+                       toolName.toLowerCase().includes(searchTerm);
+
+        if (matches) {
+          button.style.display = 'flex';
+          visibleButtons++;
+        } else {
+          button.style.display = 'none';
+        }
+      });
+
+      // Show/hide entire group based on visible buttons
+      if (visibleButtons > 0) {
+        groupElement.style.display = 'block';
+        titleElement.style.display = 'block';
+        visibleGroups++;
+      } else {
+        groupElement.style.display = 'none';
+        titleElement.style.display = 'none';
+      }
+    });
+
+    // Show message if no results found
+    updateNoResultsMessage(searchTerm, visibleGroups);
+  }
+
+  // Update no results message
+  function updateNoResultsMessage(searchTerm, visibleGroups) {
+    let noResultsMsg = document.getElementById('noResultsMessage');
+
+    if (searchTerm && visibleGroups === 0) {
+      if (!noResultsMsg) {
+        noResultsMsg = document.createElement('div');
+        noResultsMsg.id = 'noResultsMessage';
+        noResultsMsg.style.cssText = `
+          padding: 12px;
+          text-align: center;
+          color: var(--muted);
+          font-size: 13px;
+          font-style: italic;
+          margin: 8px 0;
+        `;
+        toolsSearch.parentNode.parentNode.appendChild(noResultsMsg);
+      }
+      noResultsMsg.textContent = `No tools found for "${searchTerm}"`;
+      noResultsMsg.style.display = 'block';
+    } else if (noResultsMsg) {
+      noResultsMsg.style.display = 'none';
+    }
+  }
+
+  // Clear search when clicking outside or on escape
+  document.addEventListener('click', (e) => {
+    if (e.target !== toolsSearch && !toolsSearch.contains(e.target)) {
+      // Optional: Clear search when clicking outside
+      // toolsSearch.value = '';
+      // filterTools('');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.activeElement === toolsSearch) {
+      toolsSearch.value = '';
+      filterTools('');
+      toolsSearch.blur();
+    }
+  });
+
   // Sidebar tool switching
   document.querySelectorAll('#toolNav button').forEach(btn => {
     console.log('Adding event listener to button:', btn.dataset.tool);
