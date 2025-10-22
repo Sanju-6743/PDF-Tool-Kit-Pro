@@ -390,6 +390,7 @@ class ModernDropzone {
   const SUPABASE_URL = 'https://kxqbttvrsfwnuwyyuhxi.supabase.co'; // Supabase project URL
   const SUPABASE_ANON_KEY = 'sb_publishable_vq1nyvt5YRTMYb5oo-wwaA_WSZvV_vp'; // Supabase API key
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const OCR_API_URL = window.__OCR_API_URL__ || 'http://localhost:8000/ocr';
 
   // Global variables
   const app = document.getElementById('app');
@@ -683,33 +684,28 @@ class ModernDropzone {
     }
 
     async performOCR(file) {
-      if (file.type.startsWith('image/')) {
-        const image = new Image();
-        image.src = URL.createObjectURL(file);
-        await new Promise(resolve => image.onload = resolve);
-        const result = await Tesseract.recognize(image, 'eng');
-        return result.data.text;
-      } else {
-        // PDF OCR
-        const arrayBuffer = await file.arrayBuffer();
-        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = '';
+      const formData = new FormData();
+      formData.append('file', file);
 
-        for (let i = 1; i <= pdfDoc.numPages; i++) {
-          const page = await pdfDoc.getPage(i);
-          const canvas = document.createElement('canvas');
-          const viewport = page.getViewport({ scale: 2 });
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d');
-          await page.render({ canvasContext: ctx, viewport }).promise;
+      const response = await fetch(OCR_API_URL, {
+        method: 'POST',
+        body: formData
+      });
+      const clonedResponse = response.clone();
 
-          const result = await Tesseract.recognize(canvas, 'eng');
-          fullText += `--- Page ${i} ---\n${result.data.text}\n\n`;
-        }
-
-        return fullText;
+      let payload;
+      try {
+        payload = await response.json();
+      } catch {
+        const fallbackText = await clonedResponse.text();
+        payload = { detail: fallbackText };
       }
+
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || 'OCR request failed');
+      }
+
+      return payload.text || '';
     }
 
     async convertToFormat(file, format) {
@@ -3606,34 +3602,10 @@ class ModernDropzone {
     if(!ocrFile) { Swal.fire('No file','Upload a file for OCR','info'); return; }
     try{
       showOverlay('Running OCR...');
+      loaderProgress.textContent = 'Processing file';
       processingStartTime = Date.now();
-      let fullText = '';
-      if(ocrFile.type.startsWith('image/')){
-        const img = new Image();
-        img.src = URL.createObjectURL(ocrFile);
-        await new Promise(r => img.onload = r);
-        const result = await Tesseract.recognize(img, 'eng');
-        fullText = result.data.text;
-      } else {
-        // For PDF, process all pages
-        const arr = await ocrFile.arrayBuffer();
-        const pdfJsDoc = await pdfjsLib.getDocument({data: arr}).promise;
-        const numPages = pdfJsDoc.numPages;
-        for(let i=1; i<=numPages; i++){
-          loaderProgress.textContent = `Processing page ${i}/${numPages}`;
-          const page = await pdfJsDoc.getPage(i);
-          const canvas = document.createElement('canvas');
-          const viewport = page.getViewport({scale: 2});
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d');
-          await page.render({canvasContext: ctx, viewport}).promise;
-          const result = await Tesseract.recognize(canvas, 'eng');
-          fullText += `--- Page ${i} ---\n${result.data.text}\n\n`;
-          await new Promise(r=>setTimeout(r,10)); // Allow UI updates
-        }
-      }
-      document.getElementById('ocrText').value = fullText;
+      const text = await batchProcessor.performOCR(ocrFile);
+      document.getElementById('ocrText').value = text;
       processingTimes.push(Date.now() - processingStartTime);
       totalProcessed++;
       updateCounters();
