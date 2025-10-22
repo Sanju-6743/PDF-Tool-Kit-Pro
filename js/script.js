@@ -387,8 +387,8 @@ class ModernDropzone {
 
 (async function(){
   // Supabase initialization
-  const SUPABASE_URL = 'https://lgevgqlyqgopemtipvkw.supabase.co'; // Supabase project URL
-  const SUPABASE_ANON_KEY = 'sb_publishable_QGG9HyF0tF-pmPurdgytWg_WLIyHIQA'; // Supabase API key
+  const SUPABASE_URL = 'https://kxqbttvrsfwnuwyyuhxi.supabase.co'; // Supabase project URL
+  const SUPABASE_ANON_KEY = 'sb_publishable_vq1nyvt5YRTMYb5oo-wwaA_WSZvV_vp'; // Supabase API key
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // Global variables
