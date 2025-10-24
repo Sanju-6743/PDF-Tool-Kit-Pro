@@ -390,7 +390,6 @@ class ModernDropzone {
   const SUPABASE_URL = 'https://kxqbttvrsfwnuwyyuhxi.supabase.co'; // Supabase project URL
   const SUPABASE_ANON_KEY = 'sb_publishable_vq1nyvt5YRTMYb5oo-wwaA_WSZvV_vp'; // Supabase API key
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const OCR_API_URL = window.__OCR_API_URL__ || 'http://localhost:8000/ocr';
 
   // Global variables
   const app = document.getElementById('app');
@@ -418,6 +417,149 @@ class ModernDropzone {
   // Global statistics
   let globalTotalUsers = 0;
   let globalTotalFiles = 0;
+
+  // KPI Update Functions
+  async function updateKPI(type, value = 1) {
+    console.log(`KPI Update: ${type} += ${value}`);
+
+    try {
+      // Call the database function without transaction issues
+      const { data, error } = await supabase.rpc('update_global_metrics', {
+        p_total_files_diff: type === 'total_files' ? value : 0,
+        p_uploaded_today_diff: type === 'uploaded_today' ? value : 0,
+        p_processed_today_diff: type === 'processed_today' ? value : 0,
+        p_error_count_diff: type === 'error_count' ? value : 0,
+        p_avg_time_new: type === 'avg_time' ? value : null
+      });
+
+      if (error) throw error;
+
+      // Update local display immediately
+      fetchMetrics();
+
+      // Add visual feedback
+      flashKPI(type.replace('_', ' ').replace('today', ''));
+
+      return true;
+    } catch (error) {
+      console.error('KPI update failed:', error);
+      // Fallback to localStorage if database fails
+      fallbackUpdateKPI(type, value);
+      return false;
+    }
+  }
+
+  // Fallback KPI update using localStorage
+  function fallbackUpdateKPI(type, value) {
+    const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
+    metrics[type] = (metrics[type] || 0) + value;
+    localStorage.setItem('pdftk.metrics', JSON.stringify(metrics));
+
+    // Update display from localStorage
+    updateCountersFromLocal();
+    updateGlobalCountersFromLocal();
+  }
+
+  // Fetch current metrics from database
+  async function fetchMetrics() {
+    try {
+      const { data: metrics, error } = await supabase
+        .from('global_metrics')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (error) throw error;
+
+      // Update global counters
+      globalTotalFiles = metrics.total_files || 0;
+      globalTotalUsers = metrics.total_users || 0;
+
+      // For session counters, we combine database and local session
+      document.getElementById('uploadedCount').textContent = metrics.uploaded_today || 0;
+      document.getElementById('processedCount').textContent = metrics.processed_today || 0;
+      document.getElementById('errorsCount').textContent = metrics.error_count || 0;
+      document.getElementById('avgTime').textContent = metrics.avg_time ? Math.round(metrics.avg_time) + 's' : '0s';
+
+      updateGlobalCounters();
+
+      console.log('Metrics fetched and updated:', metrics);
+      return metrics;
+    } catch (error) {
+      console.error('Failed to fetch metrics:', error);
+      // Fallback to localStorage
+      updateCountersFromLocal();
+      updateGlobalCountersFromLocal();
+      return null;
+    }
+  }
+
+  // Update counters from localStorage fallback
+  function updateCountersFromLocal() {
+    const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
+    document.getElementById('uploadedCount').textContent = metrics.uploaded_today || totalUploaded;
+    document.getElementById('processedCount').textContent = metrics.processed_today || totalProcessed;
+    document.getElementById('errorsCount').textContent = metrics.error_count || errorsCount;
+    document.getElementById('avgTime').textContent = metrics.avg_time ? Math.round(metrics.avg_time) + 's' : '0s';
+  }
+
+  // Update global counters from localStorage fallback
+  function updateGlobalCountersFromLocal() {
+    const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
+    document.getElementById('globalUsersCount').textContent = metrics.total_users || globalTotalUsers;
+    document.getElementById('globalFilesCount').textContent = metrics.total_files || globalTotalFiles;
+  }
+
+  // Flash animation for KPI updates
+  function flashKPI(type) {
+    const mapping = {
+      'uploaded': 'uploadedCount',
+      'processed': 'processedCount',
+      'error': 'errorsCount',
+      'total files': 'globalFilesCount'
+    };
+
+    const elementId = mapping[type];
+    if (elementId) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.classList.add('kpi-flash');
+        setTimeout(() => element.classList.remove('kpi-flash'), 2000);
+
+        // Sound notification for errors
+        if (type === 'error') {
+          playSound('error');
+        } else {
+          playSound('complete');
+        }
+      }
+    }
+  }
+
+  // Sync metrics in real-time using Supabase Realtime
+  function initMetricSync() {
+    const channel = supabase
+      .channel('global_metrics')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'global_metrics',
+          filter: 'id=eq.1'
+        },
+        (payload) => {
+          console.log('Real-time metrics update:', payload);
+          fetchMetrics();
+        }
+      )
+      .subscribe();
+
+    console.log('Real-time metric sync initialized');
+    return channel;
+  }
+
+
 
   // Update counters display
   function updateCounters() {
@@ -684,28 +826,85 @@ class ModernDropzone {
     }
 
     async performOCR(file) {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert file to image for Tesseract
+      let image;
+      if (file.type.startsWith('image/')) {
+        image = await createImageBitmap(file);
+      } else if (file.type === 'application/pdf') {
+        // For PDF, convert first page to image
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({scale: 2.0});
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        await page.render({canvasContext: context, viewport}).promise;
+        image = canvas;
+      } else {
+        throw new Error('Unsupported file type for OCR');
+      }
 
-      const response = await fetch(OCR_API_URL, {
-        method: 'POST',
-        body: formData
-      });
-      const clonedResponse = response.clone();
+      // Perform OCR using Tesseract.js v4 UMD version
+      console.log('Tesseract object:', Tesseract);
 
-      let payload;
+      // Try to access the createWorker function from the global Tesseract object
+      let worker;
+
       try {
-        payload = await response.json();
-      } catch {
-        const fallbackText = await clonedResponse.text();
-        payload = { detail: fallbackText };
-      }
+        // Try different API patterns for v4
+        if (typeof Tesseract.createWorker === 'function') {
+          worker = Tesseract.createWorker('eng');
+        } else if (Tesseract.default && typeof Tesseract.default.createWorker === 'function') {
+          worker = Tesseract.default.createWorker('eng');
+        } else {
+          throw new Error('Tesseract.createWorker not found');
+        }
 
-      if (!response.ok) {
-        throw new Error(payload.detail || payload.message || 'OCR request failed');
-      }
+        console.log('Worker created:', worker);
 
-      return payload.text || '';
+        if (typeof worker.load === 'function') {
+          await worker.load();
+          console.log('Worker loaded');
+          await worker.loadLanguage('eng');
+          console.log('Language loaded');
+          await worker.initialize('eng');
+          console.log('Worker initialized');
+
+          const { data: { text } } = await worker.recognize(image);
+          console.log('OCR completed, text length:', text.length);
+
+          await worker.terminate();
+          console.log('Worker terminated');
+
+          return text;
+        } else {
+          throw new Error('Worker does not have load method');
+        }
+      } catch (error) {
+        console.error('OCR API error:', error);
+
+        // Try alternative API pattern if main one fails
+        try {
+          // Some versions use synchronous API
+          const { createWorker } = Tesseract;
+          if (createWorker) {
+            const worker = await createWorker();
+            await worker.load();
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            const { data: { text } } = await worker.recognize(image);
+            await worker.terminate();
+            return text;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback OCR API error:', fallbackError);
+          throw new Error('Tesseract.js OCR is not working. The loaded version may not be compatible.');
+        }
+
+        throw error;
+      }
     }
 
     async convertToFormat(file, format) {
@@ -1670,8 +1869,8 @@ class ModernDropzone {
       console.log('Switched to tool:', tool);
 
       // Close sidebar on mobile after selection
-      if(window.innerWidth <= 768){
-        document.querySelector('.sidebar').classList.remove('show');
+      if(shouldCollapseSidebar()){
+        setSidebarState(false);
       }
 
       anime({
@@ -1684,27 +1883,82 @@ class ModernDropzone {
     });
   });
 
+  // Event listeners for dashboard and logs
+  document.getElementById('refreshStats').addEventListener('click', updateDashboard);
+  document.getElementById('refreshLogs').addEventListener('click', () => {
+    fetch('http://localhost:8000/logs')
+      .then(response => response.json())
+      .then(data => {
+        logs = data;
+        const liveLogs = document.getElementById('liveLogs');
+        liveLogs.innerHTML = data.map(log => 
+          `<div style="margin-bottom:5px; padding:5px; border-radius:4px; color:${log.status === 'success' ? 'var(--success)' : log.status === 'failed' ? '#ef4444' : 'var(--muted)'};">[${log.timestamp}] ${log.action} - ${log.file} - ${log.status}${log.error ? ` - ${log.error}` : ''}</div>`
+        ).join('');
+      })
+      .catch(err => console.error('Failed to fetch logs:', err));
+  });
+
+  document.getElementById('clearLogs').addEventListener('click', () => {
+    logs = [];
+    document.getElementById('liveLogs').innerHTML = '';
+  });
+
+  // Filter logs
+  document.getElementById('filterSuccess').addEventListener('change', filterLogs);
+  document.getElementById('filterError').addEventListener('change', filterLogs);
+  document.getElementById('filterInfo').addEventListener('change', filterLogs);
+  document.getElementById('logLevel').addEventListener('change', filterLogs);
+
+  function filterLogs() {
+    const showSuccess = document.getElementById('filterSuccess').checked;
+    const showError = document.getElementById('filterError').checked;
+    const showInfo = document.getElementById('filterInfo').checked;
+    const level = document.getElementById('logLevel').value;
+
+    const liveLogs = document.getElementById('liveLogs');
+    liveLogs.innerHTML = logs.filter(log => {
+      if (level !== 'all' && log.status !== level) return false;
+      if (log.status === 'success' && !showSuccess) return false;
+      if (log.status === 'failed' && !showError) return false;
+      if (log.status === 'info' && !showInfo) return false;
+      return true;
+    }).map(log => 
+      `<div style="margin-bottom:5px; padding:5px; border-radius:4px; color:${log.status === 'success' ? 'var(--success)' : log.status === 'failed' ? '#ef4444' : 'var(--muted)'};">[${log.timestamp}] ${log.action} - ${log.file} - ${log.status}${log.error ? ` - ${log.error}` : ''}</div>`
+    ).join('');
+  }
+
   // Hamburger menu functionality
   const hamburger = document.getElementById('hamburger');
   const sidebar = document.querySelector('.sidebar');
 
+  const autoCollapseThreshold = 1024;
+  const shouldCollapseSidebar = () => window.innerWidth <= autoCollapseThreshold;
+
+  const setSidebarState = (expanded) => {
+    if(expanded){
+      sidebar.classList.add('show');
+      sidebar.classList.remove('drawer');
+      hamburger.classList.add('active');
+      hamburger.setAttribute('aria-expanded', 'true');
+    } else {
+      sidebar.classList.remove('show');
+      sidebar.classList.add('drawer');
+      hamburger.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  };
+
   hamburger.addEventListener('click', (e)=>{
     e.stopPropagation();
-    sidebar.classList.toggle('show');
-    hamburger.classList.toggle('active');
-
-    // Update aria-expanded for accessibility
-    const isExpanded = sidebar.classList.contains('show');
-    hamburger.setAttribute('aria-expanded', isExpanded);
+    const willExpand = !sidebar.classList.contains('show');
+    setSidebarState(willExpand);
   });
 
   // Close sidebar when clicking outside on mobile
   document.addEventListener('click', (e)=>{
-    if(window.innerWidth <= 768){
+    if(shouldCollapseSidebar()){
       if(!sidebar.contains(e.target) && e.target !== hamburger && !hamburger.contains(e.target)){
-        sidebar.classList.remove('show');
-        hamburger.classList.remove('active');
-        hamburger.setAttribute('aria-expanded', 'false');
+        setSidebarState(false);
       }
     }
   });
@@ -1712,23 +1966,21 @@ class ModernDropzone {
   // Close sidebar on escape key
   document.addEventListener('keydown', (e)=>{
     if(e.key === 'Escape' && sidebar.classList.contains('show')){
-      sidebar.classList.remove('show');
-      hamburger.classList.remove('active');
-      hamburger.setAttribute('aria-expanded', 'false');
+      setSidebarState(false);
     }
   });
 
   // Handle window resize
   window.addEventListener('resize', ()=>{
-    if(window.innerWidth > 768){
-      sidebar.classList.remove('show');
-      hamburger.classList.remove('active');
-      hamburger.setAttribute('aria-expanded', 'false');
+    if(shouldCollapseSidebar()){
+      setSidebarState(false);
+    } else {
+      setSidebarState(true);
     }
   });
 
-  // Initialize hamburger state
-  hamburger.setAttribute('aria-expanded', 'false');
+  // Initialize hamburger state based on viewport
+  setSidebarState(!shouldCollapseSidebar());
 
   // Quick upload and global file input
   const globalInput = document.getElementById('globalFileInput');
@@ -1867,7 +2119,7 @@ class ModernDropzone {
       canvasContainer.style.justifyContent = 'center';
 
       // Hide other elements
-      document.querySelector('.sidebar').style.display = 'none';
+      setSidebarState(false);
       document.querySelector('.topbar').style.display = 'none';
 
       isFullscreen = true;
@@ -1888,7 +2140,9 @@ class ModernDropzone {
       canvasContainer.style.display = originalViewport.display;
 
       // Show hidden elements
-      document.querySelector('.sidebar').style.display = '';
+      if(!shouldCollapseSidebar()){
+        setSidebarState(true);
+      }
       document.querySelector('.topbar').style.display = '';
 
       isFullscreen = false;
@@ -2040,6 +2294,8 @@ class ModernDropzone {
       processingTimes.push(Date.now() - processingStartTime);
       totalProcessed++;
       updateCounters();
+      // Update KPIs for successful text extraction
+      await updateKPI('processed_today');
       hideOverlay();
       toastSuccess('Text extracted');
       playSound('complete');
@@ -2300,6 +2556,9 @@ class ModernDropzone {
       processingTimes.push(Date.now() - processingStartTime);
       totalProcessed++;
       updateCounters();
+      // Update KPIs for successful split operation
+      await updateKPI('processed_today');
+      await updateKPI('total_files', splitFiles.length); // Increase by number of split files created
       hideOverlay();
       toastSuccess('Split ready — click Download on pages or Download All as ZIP');
       playSound('complete');
@@ -3611,11 +3870,34 @@ class ModernDropzone {
       updateCounters();
       hideOverlay(); toastSuccess('OCR completed');
       playSound('complete');
+
+      // Add log entry (only if logs is available)
+      if (typeof addLog === 'function') {
+        addLog({
+          timestamp: new Date().toISOString(),
+          action: 'OCR',
+          file: file.name,
+          status: 'success',
+          processing_time: Date.now() - processingStartTime,
+          text_length: text.length
+        });
+      }
     } catch(err){
       console.error('OCR error:', err);
       hideOverlay(); toastError('OCR failed: ' + (err.message || 'Unknown error'));
       errorsCount++;
       updateCounters();
+
+      // Add error log (only if logs is available)
+      if (typeof addLog === 'function') {
+        addLog({
+          timestamp: new Date().toISOString(),
+          action: 'OCR',
+          file: 'OCR_File',
+          status: 'failed',
+          error: err.message
+        });
+      }
     }
   }
 
@@ -4611,6 +4893,8 @@ class ModernDropzone {
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('app').style.display = 'grid';
       loadUserStats();
+      // Initialize real-time sync after successful login
+      initMetricSync();
       showNotification('Login successful!', 'success');
     } catch (error) {
       showAuthMessage(error.message, 'error');
@@ -4927,6 +5211,116 @@ class ModernDropzone {
   demoBtn.style.cssText = 'margin-top: 8px; background: linear-gradient(45deg, #ff6b6b, #ffa500);';
   demoBtn.addEventListener('click', window.testModernDropzone);
   document.querySelector('.sidebar > div:last-child').appendChild(demoBtn);
+
+  // Dashboard and Logs functionality
+  let statsChart = null;
+  let logs = JSON.parse(localStorage.getItem('pdftk.logs') || '[]');
+  let stats = JSON.parse(localStorage.getItem('pdftk.stats') || '{"total_files": 0, "successful": 0, "failed": 0, "processing_times": []}');
+
+  // Add log to display
+  function addLog(log) {
+    logs.push(log);
+    if (logs.length > 1000) logs = logs.slice(-1000); // Keep only last 1000 logs
+    localStorage.setItem('pdftk.logs', JSON.stringify(logs));
+
+    const liveLogs = document.getElementById('liveLogs');
+    const logDiv = document.createElement('div');
+    logDiv.style.marginBottom = '5px';
+    logDiv.style.padding = '5px';
+    logDiv.style.borderRadius = '4px';
+
+    let color = 'var(--muted)';
+    if (log.status === 'success') color = 'var(--success)';
+    else if (log.status === 'failed') color = '#ef4444';
+
+    logDiv.style.color = color;
+    logDiv.textContent = `[${log.timestamp}] ${log.action} - ${log.file} - ${log.status}`;
+    if (log.error) logDiv.textContent += ` - ${log.error}`;
+
+    liveLogs.appendChild(logDiv);
+    liveLogs.scrollTop = liveLogs.scrollHeight;
+
+    // Update dashboard
+    updateDashboard();
+  }
+
+  // Update dashboard
+  function updateDashboard() {
+    const ctx = document.getElementById('statsChart').getContext('2d');
+    if (statsChart) statsChart.destroy();
+
+    statsChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Successful', 'Failed'],
+        datasets: [{
+          data: [stats.successful, stats.failed],
+          backgroundColor: ['var(--success)', '#ef4444']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          title: {
+            display: true,
+            text: 'Processing Stats'
+          }
+        }
+      }
+    });
+
+    // Update recent activity
+    const recentActivity = document.getElementById('recentActivity');
+    recentActivity.innerHTML = logs.slice(-10).map(log => 
+      `<div style="margin-bottom:5px;">${log.action} - ${log.file} - ${log.status}</div>`
+    ).join('');
+  }
+
+  // Event listeners for dashboard and logs
+  document.getElementById('refreshStats').addEventListener('click', updateDashboard);
+  document.getElementById('refreshLogs').addEventListener('click', () => {
+    const liveLogs = document.getElementById('liveLogs');
+    liveLogs.innerHTML = logs.map(log => 
+      `<div style="margin-bottom:5px; padding:5px; border-radius:4px; color:${log.status === 'success' ? 'var(--success)' : log.status === 'failed' ? '#ef4444' : 'var(--muted)'};">[${log.timestamp}] ${log.action} - ${log.file} - ${log.status}${log.error ? ` - ${log.error}` : ''}</div>`
+    ).join('');
+  });
+
+  document.getElementById('clearLogs').addEventListener('click', () => {
+    logs = [];
+    localStorage.setItem('pdftk.logs', JSON.stringify(logs));
+    document.getElementById('liveLogs').innerHTML = '';
+    updateDashboard();
+  });
+
+  // Filter logs
+  document.getElementById('filterSuccess').addEventListener('change', filterLogs);
+  document.getElementById('filterError').addEventListener('change', filterLogs);
+  document.getElementById('filterInfo').addEventListener('change', filterLogs);
+  document.getElementById('logLevel').addEventListener('change', filterLogs);
+
+  function filterLogs() {
+    const showSuccess = document.getElementById('filterSuccess').checked;
+    const showError = document.getElementById('filterError').checked;
+    const showInfo = document.getElementById('filterInfo').checked;
+    const level = document.getElementById('logLevel').value;
+
+    const liveLogs = document.getElementById('liveLogs');
+    liveLogs.innerHTML = logs.filter(log => {
+      if (level !== 'all' && log.status !== level) return false;
+      if (log.status === 'success' && !showSuccess) return false;
+      if (log.status === 'failed' && !showError) return false;
+      if (log.status === 'info' && !showInfo) return false;
+      return true;
+    }).map(log => 
+      `<div style="margin-bottom:5px; padding:5px; border-radius:4px; color:${log.status === 'success' ? 'var(--success)' : log.status === 'failed' ? '#ef4444' : 'var(--muted)'};">[${log.timestamp}] ${log.action} - ${log.file} - ${log.status}${log.error ? ` - ${log.error}` : ''}</div>`
+    ).join('');
+  }
+
+  // Initialize dashboard
+  updateDashboard();
 
   // Helpful: load sample PDF from remote (disabled by default)
   // END main IIFE

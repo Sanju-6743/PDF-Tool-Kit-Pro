@@ -11,7 +11,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-  <!-- SweetAlert2 -->
+  <!-- SweetAlert2 -d->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <!-- Anime.js -->
@@ -37,6 +37,12 @@
 
   <!-- Mammoth.js for DOCX -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Tesseract.js for OCR (UMD version for global access) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
   <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -78,131 +84,136 @@
   </div>
 
   <div class="app" id="app">
-    <!-- Topbar -->
-    <div class="topbar">
-      <div class="brand">
-        <img class="logo" src="images/Gemini_Generated_Image_pt8fnjpt8fnjpt8f.png" alt="PDF Toolkit Pro Logo">
-        <div>
-          <h1>PDF Toolkit Pro</h1>
-          <p class="muted">Sanju's PDF toolkit</p>
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <img class="logo" src="images/Gemini_Generated_Image_pt8fnjpt8fnjpt8f.png" alt="PDF Toolkit Pro Logo">
+          <div class="brand-copy">
+            <h1>PDF Toolkit Pro</h1>
+            <p class="muted">Sanju's PDF toolkit</p>
+          </div>
+        </div>
+        <div class="topbar-metrics">
+          <div class="processing-counters">
+            <div class="counter">
+              <span class="counter-label">Uploaded:</span>
+              <span class="counter-value" id="uploadedCount">0</span>
+            </div>
+            <div class="counter">
+              <span class="counter-label">Processed:</span>
+              <span class="counter-value" id="processedCount">0</span>
+            </div>
+            <div class="counter">
+              <span class="counter-label">Errors:</span>
+              <span class="counter-value" id="errorsCount">0</span>
+            </div>
+            <div class="counter">
+              <span class="counter-label">Avg Time:</span>
+              <span class="counter-value" id="avgTime">0s</span>
+            </div>
+          </div>
+          <div class="global-counters">
+            <div class="counter">
+              <span class="counter-label">Total Users:</span>
+              <span class="counter-value" id="globalUsersCount">0</span>
+            </div>
+            <div class="counter">
+              <span class="counter-label">Total Files:</span>
+              <span class="counter-value" id="globalFilesCount">0</span>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="processing-counters">
-        <div class="counter">
-          <span class="counter-label">Uploaded:</span>
-          <span class="counter-value" id="uploadedCount">0</span>
-        </div>
-        <div class="counter">
-          <span class="counter-label">Processed:</span>
-          <span class="counter-value" id="processedCount">0</span>
-        </div>
-        <div class="counter">
-          <span class="counter-label">Errors:</span>
-          <span class="counter-value" id="errorsCount">0</span>
-        </div>
-        <div class="counter">
-          <span class="counter-label">Avg Time:</span>
-          <span class="counter-value" id="avgTime">0s</span>
-        </div>
-      </div>
-
-      <div class="global-counters">
-        <div class="counter">
-          <span class="counter-label">Total Users:</span>
-          <span class="counter-value" id="globalUsersCount">0</span>
-        </div>
-        <div class="counter">
-          <span class="counter-label">Total Files:</span>
-          <span class="counter-value" id="globalFilesCount">0</span>
-        </div>
-      </div>
-
       <div class="top-actions">
         <button class="btn hamburger" id="hamburger" title="Menu" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
-        <div class="toggle" title="Theme toggle" id="themeToggle">
+        <button class="toggle" title="Theme toggle" id="themeToggle">
           <i class="fa-regular fa-sun"></i>
-          <label>Light</label>
-        </div>
-
+          <span>Light</span>
+        </button>
         <button class="btn" id="recentBtn" title="Recent files" aria-label="Recent files"><i class="fa-solid fa-clock-rotate-left"></i><span> Recent</span></button>
         <button class="btn primary" id="quickUpload" aria-label="Quick upload"><i class="fa-solid fa-upload"></i><span> Upload</span></button>
         <button class="btn" id="notificationsBtn" title="Error notifications" aria-label="Notifications"><i class="fa-solid fa-bell"></i><span id="notificationBadge" class="badge" style="display:none;">0</span></button>
         <button class="btn" id="soundToggle" title="Toggle notification sounds" aria-label="Sound toggle"><i class="fa-solid fa-volume-up"></i></button>
       </div>
-    </div>
+    </header>
 
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div style="font-weight:700">Tools</div>
-        <div class="muted" style="font-size:12px">All client-side</div>
-      </div>
+    <div class="layout-body">
+      <aside class="sidebar" aria-label="Tool navigation">
+        <header class="sidebar-header">
+          <h2 class="sidebar-title">Tools</h2>
+          <p class="sidebar-subtitle muted">All client-side</p>
+        </header>
 
-      <!-- Search Bar -->
-      <div class="search-container" style="margin-bottom:16px;">
-        <div class="search-input-wrapper">
-          <i class="fa-solid fa-magnifying-glass search-icon"></i>
-          <input type="text" id="toolsSearch" placeholder="Search tools..." class="search-input">
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="toolsSearch" placeholder="Search tools..." class="search-input">
+          </div>
         </div>
-      </div>
 
-      <nav class="nav" id="toolNav">
-        <div class="nav-group">
-          <div class="nav-title">Viewer</div>
-          <button class="active" data-tool="viewer"><i class="fa-solid fa-eye"></i> Viewer</button>
+        <div class="sidebar-tools" tabindex="0">
+          <nav class="nav" id="toolNav">
+            <div class="nav-group">
+              <div class="nav-title">Viewer</div>
+              <button class="active" data-tool="viewer"><i class="fa-solid fa-eye"></i> Viewer</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">Text Tools</div>
+              <button data-tool="extract"><i class="fa-solid fa-file-lines"></i> Extract Text</button>
+              <button data-tool="textpdf"><i class="fa-solid fa-file-alt"></i> Create from Text</button>
+              <button data-tool="search"><i class="fa-solid fa-search"></i> Search PDF</button>
+              <button data-tool="ocr"><i class="fa-solid fa-microscope"></i> OCR</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">📄 Page Management</div>
+              <button data-tool="split"><i class="fa-solid fa-scissors"></i> Split PDF</button>
+              <button data-tool="rotate"><i class="fa-solid fa-rotate-right"></i> Rotate Pages</button>
+              <button data-tool="delete"><i class="fa-solid fa-trash-can"></i> Delete Pages</button>
+              <button data-tool="extractpages"><i class="fa-solid fa-file-export"></i> Extract Pages</button>
+              <button data-tool="reorder"><i class="fa-solid fa-sort"></i> Reorder Pages</button>
+              <button data-tool="duplicate"><i class="fa-solid fa-clone"></i> Duplicate Pages</button>
+              <button data-tool="addblank"><i class="fa-solid fa-plus-circle"></i> Add Blank Page</button>
+              <button data-tool="insertpages"><i class="fa-solid fa-file-circle-plus"></i> Insert Pages</button>
+              <button data-tool="mixpages"><i class="fa-solid fa-shuffle"></i> Mix/Interleave Pages</button>
+              <button data-tool="splitbookmarks"><i class="fa-solid fa-bookmark"></i> Split by Bookmarks</button>
+              <button data-tool="splitn"><i class="fa-solid fa-list-ol"></i> Split Every N Pages</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">Annotations</div>
+              <button data-tool="annotate"><i class="fa-solid fa-highlighter"></i> Annotate</button>
+              <button data-tool="shapes"><i class="fa-solid fa-draw-polygon"></i> Draw Shapes</button>
+              <button data-tool="fillforms"><i class="fa-solid fa-edit"></i> Fill Forms</button>
+              <button data-tool="signature"><i class="fa-solid fa-signature"></i> Add Signature</button>
+              <button data-tool="customtext"><i class="fa-solid fa-pen-nib"></i> Add Custom Text</button>
+              <button data-tool="pagenumbers"><i class="fa-solid fa-hashtag"></i> Add Page Numbers</button>
+              <button data-tool="watermark"><i class="fa-solid fa-tint"></i> Add Watermark</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">Images</div>
+              <button data-tool="imagespdf"><i class="fa-solid fa-images"></i> Images → PDF</button>
+              <button data-tool="pdftoimages"><i class="fa-solid fa-file-image"></i> PDF → Images</button>
+              <button data-tool="extractimages"><i class="fa-solid fa-image"></i> Extract Images</button>
+              <button data-tool="editimages"><i class="fa-solid fa-crop"></i> Edit Images in PDF</button>
+              <button data-tool="backgroundimages"><i class="fa-solid fa-image"></i> Add Background Images</button>
+              <button data-tool="stamps"><i class="fa-solid fa-certificate"></i> Add Stamps</button>
+              <button data-tool="multisignature"><i class="fa-solid fa-signature"></i> Multi-Signature</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">Other</div>
+              <button data-tool="merge"><i class="fa-solid fa-object-group"></i> Merge PDFs</button>
+              <button data-tool="compress"><i class="fa-solid fa-compress"></i> Compress PDF</button>
+              <button data-tool="metadata"><i class="fa-solid fa-info-circle"></i> Edit Metadata</button>
+              <button data-tool="password"><i class="fa-solid fa-lock"></i> Password Protect</button>
+              <button data-tool="unlock"><i class="fa-solid fa-unlock"></i> Unlock PDF</button>
+              <button data-tool="chatbot"><i class="fa-solid fa-robot"></i> AI Chatbot</button>
+            </div>
+            <div class="nav-group">
+              <div class="nav-title">Analytics</div>
+              <button data-tool="dashboard"><i class="fa-solid fa-chart-bar"></i> Dashboard</button>
+              <button data-tool="logs"><i class="fa-solid fa-terminal"></i> Terminal Logs</button>
+            </div>
+          </nav>
         </div>
-        <div class="nav-group">
-          <div class="nav-title">Text Tools</div>
-          <button data-tool="extract"><i class="fa-solid fa-file-lines"></i> Extract Text</button>
-          <button data-tool="textpdf"><i class="fa-solid fa-file-alt"></i> Create from Text</button>
-          <button data-tool="search"><i class="fa-solid fa-search"></i> Search PDF</button>
-          <button data-tool="ocr"><i class="fa-solid fa-microscope"></i> OCR</button>
-        </div>
-        <div class="nav-group">
-          <div class="nav-title">📄 Page Management</div>
-          <button data-tool="split"><i class="fa-solid fa-scissors"></i> Split PDF</button>
-          <button data-tool="rotate"><i class="fa-solid fa-rotate-right"></i> Rotate Pages</button>
-          <button data-tool="delete"><i class="fa-solid fa-trash-can"></i> Delete Pages</button>
-          <button data-tool="extractpages"><i class="fa-solid fa-file-export"></i> Extract Pages</button>
-          <button data-tool="reorder"><i class="fa-solid fa-sort"></i> Reorder Pages</button>
-          <button data-tool="duplicate"><i class="fa-solid fa-clone"></i> Duplicate Pages</button>
-          <button data-tool="addblank"><i class="fa-solid fa-plus-circle"></i> Add Blank Page</button>
-          <button data-tool="insertpages"><i class="fa-solid fa-file-circle-plus"></i> Insert Pages</button>
-          <button data-tool="mixpages"><i class="fa-solid fa-shuffle"></i> Mix/Interleave Pages</button>
-          <button data-tool="splitbookmarks"><i class="fa-solid fa-bookmark"></i> Split by Bookmarks</button>
-          <button data-tool="splitn"><i class="fa-solid fa-list-ol"></i> Split Every N Pages</button>
-        </div>
-        <div class="nav-group">
-          <div class="nav-title">Annotations</div>
-          <button data-tool="annotate"><i class="fa-solid fa-highlighter"></i> Annotate</button>
-          <button data-tool="shapes"><i class="fa-solid fa-draw-polygon"></i> Draw Shapes</button>
-          <button data-tool="fillforms"><i class="fa-solid fa-edit"></i> Fill Forms</button>
-          <button data-tool="signature"><i class="fa-solid fa-signature"></i> Add Signature</button>
-          <button data-tool="customtext"><i class="fa-solid fa-pen-nib"></i> Add Custom Text</button>
-          <button data-tool="pagenumbers"><i class="fa-solid fa-hashtag"></i> Add Page Numbers</button>
-          <button data-tool="watermark"><i class="fa-solid fa-tint"></i> Add Watermark</button>
-        </div>
-        <div class="nav-group">
-          <div class="nav-title">Images</div>
-          <button data-tool="imagespdf"><i class="fa-solid fa-images"></i> Images → PDF</button>
-          <button data-tool="pdftoimages"><i class="fa-solid fa-file-image"></i> PDF → Images</button>
-          <button data-tool="extractimages"><i class="fa-solid fa-image"></i> Extract Images</button>
-          <button data-tool="editimages"><i class="fa-solid fa-crop"></i> Edit Images in PDF</button>
-          <button data-tool="backgroundimages"><i class="fa-solid fa-image"></i> Add Background Images</button>
-          <button data-tool="stamps"><i class="fa-solid fa-certificate"></i> Add Stamps</button>
-          <button data-tool="multisignature"><i class="fa-solid fa-signature"></i> Multi-Signature</button>
-        </div>
-        <div class="nav-group">
-          <div class="nav-title">Other</div>
-          <button data-tool="merge"><i class="fa-solid fa-object-group"></i> Merge PDFs</button>
-          <button data-tool="compress"><i class="fa-solid fa-compress"></i> Compress PDF</button>
-          <button data-tool="metadata"><i class="fa-solid fa-info-circle"></i> Edit Metadata</button>
-          <button data-tool="password"><i class="fa-solid fa-lock"></i> Password Protect</button>
-          <button data-tool="unlock"><i class="fa-solid fa-unlock"></i> Unlock PDF</button>
-          <button data-tool="chatbot"><i class="fa-solid fa-robot"></i> AI Chatbot</button>
-        </div>
-      </nav>
 
       <hr style="margin:12px 0;border:none;border-top:1px dashed rgba(0,0,0,0.06)">
 
@@ -1138,6 +1149,59 @@
           <div style="font-weight:600; margin-bottom:8px">Signature Preview:</div>
           <div style="border:1px solid var(--muted); border-radius:8px; padding:20px; background:var(--card); position:relative; width:400px; height:100px;">
             <canvas id="signaturePreviewCanvas" width="400" height="100" style="border:1px solid var(--muted); border-radius:4px;"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard -->
+      <section class="tool" id="dashboard">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Dashboard</strong><div class="muted">Analytics and performance metrics</div></div>
+          <div>
+            <button class="btn" id="refreshStats"><i class="fa-solid fa-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:300px;">
+            <canvas id="statsChart" width="400" height="200"></canvas>
+          </div>
+          <div style="flex:1; min-width:300px;">
+            <div style="font-weight:600; margin-bottom:10px;">Recent Activity</div>
+            <div id="recentActivity" style="max-height:200px; overflow-y:auto; border:1px solid var(--muted); border-radius:8px; padding:10px; background:var(--card);"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Terminal Logs -->
+      <section class="tool" id="logs">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div><strong>Terminal Logs</strong><div class="muted">Real-time system logs and activity</div></div>
+          <div>
+            <button class="btn" id="clearLogs"><i class="fa-solid fa-trash"></i> Clear</button>
+            <button class="btn" id="refreshLogs"><i class="fa-solid fa-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:300px;">
+            <div style="font-weight:600; margin-bottom:10px;">Live Logs</div>
+            <div id="liveLogs" style="height:400px; overflow-y:auto; border:1px solid var(--muted); border-radius:8px; padding:10px; background:var(--card); font-family:monospace; font-size:12px;"></div>
+          </div>
+          <div style="flex:1; min-width:300px;">
+            <div style="font-weight:600; margin-bottom:10px;">Log Filters</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+              <label><input type="checkbox" id="filterSuccess" checked> Success</label>
+              <label><input type="checkbox" id="filterError" checked> Errors</label>
+              <label><input type="checkbox" id="filterInfo" checked> Info</label>
+            </div>
+            <div style="font-weight:600; margin-bottom:10px;">Log Levels</div>
+            <select id="logLevel" style="width:100%; padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);">
+              <option value="all">All</option>
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+              <option value="info">Info</option>
+            </select>
           </div>
         </div>
       </section>

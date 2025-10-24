@@ -61,3 +61,67 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_user_stats_updated_at
   BEFORE UPDATE ON user_stats
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create global_metrics table for real-time KPI counters
+CREATE TABLE IF NOT EXISTS global_metrics (
+  id SERIAL PRIMARY KEY,
+  total_files BIGINT DEFAULT 0,
+  uploaded_today INTEGER DEFAULT 0,
+  processed_today INTEGER DEFAULT 0,
+  error_count INTEGER DEFAULT 0,
+  avg_time FLOAT DEFAULT 0,
+  total_users INTEGER DEFAULT 0,
+  today_date DATE DEFAULT CURRENT_DATE,
+  last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE global_metrics ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for global_metrics (read-only for all authenticated users, update via functions)
+CREATE POLICY "Authenticated users can read global metrics" ON global_metrics
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Insert initial row
+INSERT INTO global_metrics (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Function to update metrics safely
+CREATE OR REPLACE FUNCTION update_global_metrics(
+  p_total_files_diff INTEGER DEFAULT 0,
+  p_uploaded_today_diff INTEGER DEFAULT 0,
+  p_processed_today_diff INTEGER DEFAULT 0,
+  p_error_count_diff INTEGER DEFAULT 0,
+  p_avg_time_new FLOAT DEFAULT NULL
+) RETURNS VOID AS $$
+DECLARE
+  current_rec RECORD;
+BEGIN
+  -- Check if today has changed, reset daily counters if so
+  SELECT * INTO current_rec FROM global_metrics WHERE id = 1 FOR UPDATE;
+
+  IF current_rec.today_date != CURRENT_DATE THEN
+    UPDATE global_metrics SET
+      uploaded_today = 0,
+      processed_today = 0,
+      error_count = 0,
+      today_date = CURRENT_DATE,
+      last_updated = NOW()
+    WHERE id = 1;
+  END IF;
+
+  -- Update metrics
+  UPDATE global_metrics SET
+    total_files = GREATEST(0, total_files + COALESCE(p_total_files_diff, 0)),
+    uploaded_today = GREATEST(0, uploaded_today + COALESCE(p_uploaded_today_diff, 0)),
+    processed_today = GREATEST(0, processed_today + COALESCE(p_processed_today_diff, 0)),
+    error_count = GREATEST(0, error_count + COALESCE(p_error_count_diff, 0)),
+    avg_time = COALESCE(p_avg_time_new, avg_time),
+    total_users = (SELECT COUNT(*) FROM auth.users WHERE email_confirmed_at IS NOT NULL),
+    last_updated = NOW()
+  WHERE id = 1;
+
+  -- Log the update for debugging
+  RAISE LOG 'Global metrics updated: total_files=%d, uploaded_today=%d, processed_today=%d, error_count=%d, avg_time=%f',
+    p_total_files_diff, p_uploaded_today_diff, p_processed_today_diff, p_error_count_diff, p_avg_time_new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
