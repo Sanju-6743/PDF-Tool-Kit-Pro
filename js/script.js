@@ -1585,11 +1585,10 @@ class ModernDropzone {
   const themeToggle = document.getElementById('themeToggle');
   themeToggle.addEventListener('click',()=>{
     const el = document.body;
-    const cur = el.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next = cur==='dark' ? 'light' : 'dark';
-    el.setAttribute('data-theme', next);
-    themeToggle.querySelector('label').textContent = next==='dark' ? 'Dark' : 'Light';
-    themeToggle.querySelector('i').className = next==='dark' ? 'fa-regular fa-moon' : 'fa-regular fa-sun';
+const next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+     el.setAttribute('data-theme', next);
+     themeToggle.querySelector('span').textContent = next==='dark' ? 'Dark' : 'Light';
+     themeToggle.querySelector('i').className = next==='dark' ? 'fa-regular fa-moon' : 'fa-regular fa-sun';
   });
 
   // Notifications button
