@@ -386,11 +386,6 @@ class ModernDropzone {
 }
 
 (async function(){
-  // Supabase initialization
-  const SUPABASE_URL = 'https://kxqbttvrsfwnuwyyuhxi.supabase.co'; // Supabase project URL
-  const SUPABASE_ANON_KEY = 'sb_publishable_vq1nyvt5YRTMYb5oo-wwaA_WSZvV_vp'; // Supabase API key
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   // Global variables
   const app = document.getElementById('app');
   const overlay = document.getElementById('overlay');
@@ -401,7 +396,7 @@ class ModernDropzone {
   let currentPdfJsDoc = null;
   let currentScale = 1.0;
   let recentFiles = JSON.parse(localStorage.getItem('pdftk.recent') || '[]');
-  let currentUser = null;
+  app.style.display = 'flex';
 
   // Processing counters
   let totalUploaded = 0;
@@ -414,100 +409,13 @@ class ModernDropzone {
   let enableSounds = localStorage.getItem('pdftk.sounds') === 'true' || false;
   let processingStats = { startTime: null, endTime: null, filesProcessed: 0, errors: 0 };
 
-  // Global statistics
-  let globalTotalUsers = 0;
-  let globalTotalFiles = 0;
-
   // KPI Update Functions
   async function updateKPI(type, value = 1) {
-    console.log(`KPI Update: ${type} += ${value}`);
-
-    try {
-      // Call the database function without transaction issues
-      const { data, error } = await supabase.rpc('update_global_metrics', {
-        p_total_files_diff: type === 'total_files' ? value : 0,
-        p_uploaded_today_diff: type === 'uploaded_today' ? value : 0,
-        p_processed_today_diff: type === 'processed_today' ? value : 0,
-        p_error_count_diff: type === 'error_count' ? value : 0,
-        p_avg_time_new: type === 'avg_time' ? value : null
-      });
-
-      if (error) throw error;
-
-      // Update local display immediately
-      fetchMetrics();
-
-      // Add visual feedback
-      flashKPI(type.replace('_', ' ').replace('today', ''));
-
-      return true;
-    } catch (error) {
-      console.error('KPI update failed:', error);
-      // Fallback to localStorage if database fails
-      fallbackUpdateKPI(type, value);
-      return false;
-    }
-  }
-
-  // Fallback KPI update using localStorage
-  function fallbackUpdateKPI(type, value) {
     const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
     metrics[type] = (metrics[type] || 0) + value;
     localStorage.setItem('pdftk.metrics', JSON.stringify(metrics));
-
-    // Update display from localStorage
-    updateCountersFromLocal();
-    updateGlobalCountersFromLocal();
-  }
-
-  // Fetch current metrics from database
-  async function fetchMetrics() {
-    try {
-      const { data: metrics, error } = await supabase
-        .from('global_metrics')
-        .select('*')
-        .eq('id', 1)
-        .single();
-
-      if (error) throw error;
-
-      // Update global counters
-      globalTotalFiles = metrics.total_files || 0;
-      globalTotalUsers = metrics.total_users || 0;
-
-      // For session counters, we combine database and local session
-      document.getElementById('uploadedCount').textContent = metrics.uploaded_today || 0;
-      document.getElementById('processedCount').textContent = metrics.processed_today || 0;
-      document.getElementById('errorsCount').textContent = metrics.error_count || 0;
-      document.getElementById('avgTime').textContent = metrics.avg_time ? Math.round(metrics.avg_time) + 's' : '0s';
-
-      updateGlobalCounters();
-
-      console.log('Metrics fetched and updated:', metrics);
-      return metrics;
-    } catch (error) {
-      console.error('Failed to fetch metrics:', error);
-      // Fallback to localStorage
-      updateCountersFromLocal();
-      updateGlobalCountersFromLocal();
-      return null;
-    }
-  }
-
-  // Update counters from localStorage fallback
-  function updateCountersFromLocal() {
-    const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
-    document.getElementById('uploadedCount').textContent = metrics.uploaded_today || totalUploaded;
-    document.getElementById('processedCount').textContent = metrics.processed_today || totalProcessed;
-    document.getElementById('errorsCount').textContent = metrics.error_count || errorsCount;
-    document.getElementById('avgTime').textContent = metrics.avg_time ? Math.round(metrics.avg_time) + 's' : '0s';
-  }
-
-  // Update global counters from localStorage fallback
-  function updateGlobalCountersFromLocal() {
-    const metrics = JSON.parse(localStorage.getItem('pdftk.metrics') || '{}');
-    document.getElementById('globalUsersCount').textContent = metrics.total_users || globalTotalUsers;
-    document.getElementById('globalFilesCount').textContent = metrics.total_files || globalTotalFiles;
+    updateCounters();
+    flashKPI(type.replace('_', ' ').replace('today', ''));
   }
 
   // Flash animation for KPI updates
@@ -515,8 +423,7 @@ class ModernDropzone {
     const mapping = {
       'uploaded': 'uploadedCount',
       'processed': 'processedCount',
-      'error': 'errorsCount',
-      'total files': 'globalFilesCount'
+      'error': 'errorsCount'
     };
 
     const elementId = mapping[type];
@@ -525,8 +432,6 @@ class ModernDropzone {
       if (element) {
         element.classList.add('kpi-flash');
         setTimeout(() => element.classList.remove('kpi-flash'), 2000);
-
-        // Sound notification for errors
         if (type === 'error') {
           playSound('error');
         } else {
@@ -535,31 +440,6 @@ class ModernDropzone {
       }
     }
   }
-
-  // Sync metrics in real-time using Supabase Realtime
-  function initMetricSync() {
-    const channel = supabase
-      .channel('global_metrics')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'global_metrics',
-          filter: 'id=eq.1'
-        },
-        (payload) => {
-          console.log('Real-time metrics update:', payload);
-          fetchMetrics();
-        }
-      )
-      .subscribe();
-
-    console.log('Real-time metric sync initialized');
-    return channel;
-  }
-
-
 
   // Update counters display
   function updateCounters() {
@@ -576,12 +456,6 @@ class ModernDropzone {
     } else {
       badge.style.display = 'none';
     }
-  }
-
-  // Update global counters display
-  function updateGlobalCounters() {
-    document.getElementById('globalUsersCount').textContent = globalTotalUsers;
-    document.getElementById('globalFilesCount').textContent = globalTotalFiles;
   }
 
   // Batch Processing System
@@ -4861,356 +4735,6 @@ class ModernDropzone {
   document.addEventListener('keydown', (e)=> {
     if(e.key==='/' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); document.getElementById('globalFileInput').click(); }
   });
-
-  // Authentication Functions
-  async function checkAuthState() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      currentUser = user;
-      if (user) {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('app').style.display = 'grid';
-        loadUserStats();
-      } else {
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('app').style.display = 'none';
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('app').style.display = 'none';
-    }
-  }
-
-  async function loginUser(email, password) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      if (error) throw error;
-      currentUser = data.user;
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('app').style.display = 'grid';
-      loadUserStats();
-      // Initialize real-time sync after successful login
-      initMetricSync();
-      showNotification('Login successful!', 'success');
-    } catch (error) {
-      showAuthMessage(error.message, 'error');
-    }
-  }
-
-  async function signupUser(email, password) {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
-      });
-      if (error) throw error;
-      showAuthMessage('Signup successful! Please check your email to confirm your account.', 'success');
-    } catch (error) {
-      showAuthMessage(error.message, 'error');
-    }
-  }
-
-  async function logoutUser() {
-    try {
-      await supabase.auth.signOut();
-      currentUser = null;
-      document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('app').style.display = 'none';
-      showNotification('Logged out successfully', 'info');
-    } catch (error) {
-      showNotification('Logout failed: ' + error.message, 'error');
-    }
-  }
-
-  function showAuthMessage(message, type) {
-    const msgEl = document.getElementById('authMessage');
-    msgEl.textContent = message;
-    msgEl.className = `auth-message ${type}`;
-  }
-
-  async function loadUserStats() {
-    if (!currentUser) return;
-    try {
-      console.log('Loading user stats for user:', currentUser.id);
-      // Load user stats from database
-      const { data: stats, error } = await supabase
-        .from('user_stats')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .single();
-
-      console.log('Database response:', { stats, error });
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No stats exist yet, initialize with zeros
-          totalUploaded = 0;
-          totalProcessed = 0;
-          updateCounters();
-          console.log('No user stats found, initializing with zeros');
-        } else {
-          console.error('Failed to load user stats:', error);
-          console.error('Error details:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint
-          });
-          showNotification(`Database error: ${error.message}`, 'error');
-          return;
-        }
-      } else if (stats) {
-        totalUploaded = stats.files_uploaded || 0;
-        totalProcessed = stats.files_processed || 0;
-        updateCounters();
-        console.log('Loaded user stats:', { totalUploaded, totalProcessed });
-      }
-
-      // Load global statistics
-      await loadGlobalStats();
-    } catch (error) {
-      console.error('Failed to load user stats:', error);
-      showNotification('Failed to load user statistics', 'error');
-    }
-  }
-
-  async function loadGlobalStats() {
-    try {
-      console.log('Loading global statistics...');
-
-      // Get total users count from auth.users table (all registered users)
-      const { count: usersCount, error: usersError } = await supabase
-        .from('auth.users')
-        .select('*', { count: 'exact', head: true });
-
-      if (usersError) {
-        console.error('Failed to load users count:', usersError);
-        globalTotalUsers = 0;
-      } else {
-        globalTotalUsers = usersCount || 0;
-      }
-
-      // Get total files uploaded from file_uploads table
-      const { count: filesCount, error: filesError } = await supabase
-        .from('file_uploads')
-        .select('*', { count: 'exact', head: true });
-
-      if (filesError) {
-        console.error('Failed to load global files count:', filesError);
-        globalTotalFiles = 0;
-      } else {
-        globalTotalFiles = filesCount || 0;
-      }
-
-      console.log('Global stats loaded:', { globalTotalUsers, globalTotalFiles });
-      updateGlobalCounters();
-    } catch (error) {
-      console.error('Failed to load global stats:', error);
-      globalTotalUsers = 0;
-      globalTotalFiles = 0;
-    }
-  }
-
-  async function updateUserStats(operation) {
-    if (!currentUser) return;
-    try {
-      const { data: stats } = await supabase
-        .from('user_stats')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .single();
-
-      let updateData = { user_id: currentUser.id, last_activity: new Date().toISOString() };
-
-      if (stats) {
-        updateData.files_uploaded = (stats.files_uploaded || 0) + (operation === 'upload' ? 1 : 0);
-        updateData.files_processed = (stats.files_processed || 0) + (operation === 'process' ? 1 : 0);
-        await supabase.from('user_stats').update(updateData).eq('user_id', currentUser.id);
-      } else {
-        updateData.files_uploaded = operation === 'upload' ? 1 : 0;
-        updateData.files_processed = operation === 'process' ? 1 : 0;
-        await supabase.from('user_stats').insert(updateData);
-      }
-
-      // Update local counters
-      if (operation === 'upload') totalUploaded++;
-      if (operation === 'process') totalProcessed++;
-      updateCounters();
-    } catch (error) {
-      console.error('Failed to update user stats:', error);
-    }
-  }
-
-  async function recordFileUpload(fileName, fileSize, operation) {
-    if (!currentUser) return;
-    try {
-      await supabase.from('file_uploads').insert({
-        user_id: currentUser.id,
-        file_name: fileName,
-        file_size: fileSize,
-        operation: operation,
-        uploaded_at: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Failed to record file upload:', error);
-    }
-  }
-
-  // Auth Event Listeners
-  document.getElementById('loginTab').addEventListener('click', () => {
-    document.getElementById('loginTab').classList.add('active');
-    document.getElementById('signupTab').classList.remove('active');
-    document.getElementById('loginForm').classList.add('active');
-    document.getElementById('signupForm').classList.remove('active');
-  });
-
-  document.getElementById('signupTab').addEventListener('click', () => {
-    document.getElementById('signupTab').classList.add('active');
-    document.getElementById('loginTab').classList.remove('active');
-    document.getElementById('signupForm').classList.add('active');
-    document.getElementById('loginForm').classList.remove('active');
-  });
-
-  document.getElementById('loginBtn').addEventListener('click', async () => {
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-    if (!email || !password) {
-      showAuthMessage('Please fill in all fields', 'error');
-      return;
-    }
-    await loginUser(email, password);
-  });
-
-  document.getElementById('signupBtn').addEventListener('click', async () => {
-    const email = document.getElementById('signupEmail').value;
-    const password = document.getElementById('signupPassword').value;
-    const confirmPassword = document.getElementById('signupConfirmPassword').value;
-
-    if (!email || !password || !confirmPassword) {
-      showAuthMessage('Please fill in all fields', 'error');
-      return;
-    }
-    if (password !== confirmPassword) {
-      showAuthMessage('Passwords do not match', 'error');
-      return;
-    }
-    if (password.length < 6) {
-      showAuthMessage('Password must be at least 6 characters', 'error');
-      return;
-    }
-    await signupUser(email, password);
-  });
-
-  // Add logout button to topbar
-  const logoutBtn = document.createElement('button');
-  logoutBtn.className = 'btn';
-  logoutBtn.innerHTML = '<i class="fa-solid fa-sign-out-alt"></i> Logout';
-  logoutBtn.addEventListener('click', logoutUser);
-  document.querySelector('.top-actions').appendChild(logoutBtn);
-
-  // Auth state listener
-  supabase.auth.onAuthStateChange((event, session) => {
-    currentUser = session?.user || null;
-    checkAuthState();
-  });
-
-  // Override file upload functions to track stats
-  const originalStoreRecentFiles = storeRecentFiles;
-  storeRecentFiles = async (files) => {
-    originalStoreRecentFiles(files);
-    for (const file of files) {
-      await updateUserStats('upload');
-      await recordFileUpload(file.name, file.size, 'upload');
-    }
-  };
-
-  // Override processing functions to track stats
-  const originalExtractTextFromPdf = extractTextFromPdf;
-  extractTextFromPdf = async (pdfjsDoc) => {
-    await originalExtractTextFromPdf(pdfjsDoc);
-    await updateUserStats('process');
-  };
-
-  // Initialize auth check
-  checkAuthState();
-
-  // Initial small animation
-  anime({
-    targets: '.logo',
-    scale: [0.9,1],
-    rotate: [0,6],
-    duration: 900,
-    easing: 'spring(1,80,10,0)'
-  });
-
-  // Demo function to test modern dropzone
-  window.testModernDropzone = function() {
-    // Create a test dropzone element
-    const testContainer = document.createElement('div');
-    testContainer.id = 'test-dropzone';
-    testContainer.style.cssText = `
-      position: fixed;
-      top: 100px;
-      right: 20px;
-      width: 320px;
-      height: 200px;
-      z-index: 10000;
-      background: var(--card);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-      padding: 16px;
-    `;
-
-    document.body.appendChild(testContainer);
-
-    // Initialize modern dropzone
-    const testDropzone = new ModernDropzone(testContainer, {
-      acceptedTypes: ['application/pdf', 'image/*', 'text/plain'],
-      maxFiles: 3,
-      onFilesSelected: (files) => {
-        console.log('Files selected:', files);
-        showNotification(`Selected ${files.length} file(s) for testing`, 'info');
-
-        // Simulate upload after 1 second
-        setTimeout(() => {
-          testDropzone.simulateUpload();
-        }, 1000);
-      },
-      onUploadProgress: (progress) => {
-        console.log('Upload progress:', progress + '%');
-      },
-      onUploadComplete: (files) => {
-        console.log('Upload complete:', files);
-        showNotification('Demo upload completed successfully!', 'success');
-      },
-      onError: (error) => {
-        console.error('Upload error:', error);
-        showNotification(error.message, 'error');
-      }
-    });
-
-    showNotification('Test dropzone created! Try dragging files or clicking to browse.', 'info');
-
-    // Auto-remove after 10 seconds
-    setTimeout(() => {
-      if (testContainer.parentNode) {
-        testContainer.parentNode.removeChild(testContainer);
-        showNotification('Test dropzone removed', 'info');
-      }
-    }, 10000);
-  };
-
-  // Add demo button to sidebar for testing
-  const demoBtn = document.createElement('button');
-  demoBtn.className = 'btn';
-  demoBtn.innerHTML = '<i class="fa-solid fa-flask"></i> Test Dropzone';
-  demoBtn.style.cssText = 'margin-top: 8px; background: linear-gradient(45deg, #ff6b6b, #ffa500);';
-  demoBtn.addEventListener('click', window.testModernDropzone);
-  document.querySelector('.sidebar > div:last-child').appendChild(demoBtn);
 
   // Dashboard and Logs functionality
   let statsChart = null;

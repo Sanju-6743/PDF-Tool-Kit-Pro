@@ -688,65 +688,6 @@ input[type="number"]:focus,input[type="text"]:focus,select:focus{
   animation:spin 1s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-.login-screen{
-  position:fixed;
-  inset:0;
-  background:linear-gradient(160deg,rgba(14,165,233,0.85),rgba(15,23,42,0.95));
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:10001;
-}
-.login-container{
-  background:var(--surface);
-  border-radius:var(--radius-lg);
-  border:1px solid var(--border);
-  padding:38px;
-  width:100%;
-  max-width:420px;
-  box-shadow:var(--shadow-lg);
-  text-align:center;
-}
-.login-header img{width:68px;height:68px;border-radius:18px;border:2px solid var(--accent)}
-.login-header h2{margin:18px 0 6px 0;font-size:24px}
-.login-header p{margin:0;color:var(--text-muted)}
-.tab-buttons{
-  display:flex;
-  border-radius:999px;
-  background:var(--surface-strong);
-  padding:4px;
-  margin-bottom:20px;
-}
-.tab-btn{
-  flex:1;
-  border-radius:999px;
-  border:0;
-  background:transparent;
-  color:var(--text-muted);
-  padding:10px 0;
-  font-weight:600;
-  cursor:pointer;
-  transition:all .2s ease;
-}
-.tab-btn.active{
-  background:linear-gradient(135deg,var(--accent),var(--accent-strong));
-  color:#0b1220;
-  box-shadow:var(--shadow-sm);
-}
-.form-content{display:none}
-.form-content.active{display:block}
-.form-content input{
-  width:100%;
-  margin-bottom:14px;
-  padding:12px 14px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--input-border);
-  background:var(--input-bg);
-}
-.form-content button{width:100%;margin-top:8px}
-.auth-message{margin-top:16px;font-size:13px}
-.auth-message.success{color:var(--success)}
-.auth-message.error{color:var(--danger)}
 .full-width{width:100%}
 .muted{color:var(--text-muted);font-size:13px}
 .small{font-size:12px}
