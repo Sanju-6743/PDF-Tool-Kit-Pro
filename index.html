@@ -186,10 +186,9 @@
       <!-- Viewer Tool -->
       <section class="tool active" id="viewer">
         <div class="viewer">
-          <div class="viewer-header">
-            <div class="tool-info"><strong>PDF Viewer</strong><div class="muted">Advanced PDF viewer with navigation & zoom controls</div></div>
+          <div class="tool-info"><strong>PDF Viewer</strong><div class="muted">Advanced PDF viewer with navigation & zoom controls</div></div>
             <div class="controls">
-              <button class="btn" id="viewerOpenBtn"><i class="fa-solid fa-upload"></i> Open PDF</button>
+              <button class="btn primary" id="viewerOpenBtn"><i class="fa-solid fa-upload"></i> Open PDF</button>
               <button class="btn" id="prevPageBtn" title="Previous Page"><i class="fa-solid fa-chevron-left"></i></button>
               <div class="page-info">
                 <input type="number" id="pageInput" min="1" value="1" style="width:60px;">
@@ -214,14 +213,13 @@
               <button class="btn" id="fullscreenBtn" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
               <button class="btn" id="renderAllBtn"><i class="fa-solid fa-list"></i> Thumbs</button>
             </div>
-          </div>
 
           <div class="canvas-wrap">
             <div style="flex:1">
               <div class="dropzone" id="viewerDrop">Drop PDF here or click Open.</div>
               <canvas id="pdf-canvas"></canvas>
             </div>
-            <div style="width:220px">
+            <div style="width:180px">
               <div style="font-weight:700;margin-bottom:8px">Pages</div>
               <div class="thumbs" id="thumbs"></div>
             </div>
