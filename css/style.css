@@ -41,17 +41,17 @@ html,body{
   transition:background .3s ease,color .3s ease;
 }
 body{
-  display:flex;
-  justify-content:center;
-  align-items:flex-start;
+  min-height:100vh;
   padding:12px;
-  overflow:auto;
+  overflow-x:hidden;
 }
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:999px}
 .app{
   width:100%;
+  max-width:1400px;
+  margin:0 auto;
   display:flex;
   flex-direction:column;
   gap:12px;
