@@ -173,7 +173,7 @@
       <hr style="margin:12px 0;border:none;border-top:1px dashed rgba(0,0,0,0.06)">
 
       <div style="font-size:13px; margin-bottom:8px">Quick actions</div>
-      <div style="display:flex;gap:8px;flex-direction:column">
+      <div class="tool-actions" style="flex-direction:column">
         <label class="btn" id="dropAreaBtn"><i class="fa-solid fa-cloud-arrow-up"></i> Drag & Drop</label>
         <label class="btn" id="fileInputLabel"><i class="fa-solid fa-file-import"></i> Choose File</label>
       </div>
@@ -232,7 +232,7 @@
       <!-- Extract Text -->
       <section class="tool" id="extract">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Extract Text</strong><div class="muted">Extract all selectable text from PDF</div></div></div>
+          <div class="tool-info"><strong>Extract Text</strong><div class="muted">Extract all selectable text from PDF</div></div>
           <div>
             <button class="btn" id="extractOpenBtn"><i class="fa-solid fa-upload"></i> Open PDF</button>
             <button class="btn primary" id="extractRunBtn"><i class="fa-solid fa-arrow-up-from-bracket"></i> Extract</button>
@@ -247,7 +247,7 @@
       <!-- Merge PDFs -->
       <section class="tool" id="merge">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Merge PDFs</strong><div class="muted">Select multiple PDFs and merge into one file</div></div></div>
+          <div class="tool-info"><strong>Merge PDFs</strong><div class="muted">Select multiple PDFs and merge into one file</div></div>
           <div>
             <input id="mergeInput" type="file" accept="application/pdf" multiple style="display:none">
             <button class="btn" id="mergeChoose"><i class="fa-solid fa-folder-open"></i> Choose PDFs</button>
@@ -256,7 +256,7 @@
         </div>
 
         <div class="drag-area" id="mergeList">No files selected. Drag PDFs here or click Choose.</div>
-        <div style="margin-top:8px; display:flex; gap:8px;">
+        <div class="tool-actions" style="margin-top:8px">
           <button class="btn small" id="mergeUp"><i class="fa-solid fa-arrow-up"></i></button>
           <button class="btn small" id="mergeDown"><i class="fa-solid fa-arrow-down"></i></button>
           <button class="btn small" id="mergeRemove"><i class="fa-solid fa-trash"></i></button>
@@ -267,7 +267,7 @@
       <!-- Split PDF -->
       <section class="tool" id="split">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Split PDF</strong><div class="muted">Split into single-page PDFs</div></div></div>
+          <div class="tool-info"><strong>Split PDF</strong><div class="muted">Split into single-page PDFs</div></div>
           <div>
             <input id="splitInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="splitChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -283,7 +283,7 @@
       <!-- AI Chatbot -->
       <section class="tool" id="chatbot">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>AI Chatbot</strong><div class="muted">Summarize documents or answer questions using Gemini AI</div></div></div>
+          <div class="tool-info"><strong>AI Chatbot</strong><div class="muted">Summarize documents or answer questions using Gemini AI</div></div>
           <div>
             <input id="chatbotFileInput" type="file" accept="application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none">
             <button class="btn" id="chatbotUploadBtn"><i class="fa-solid fa-upload"></i> Upload File</button>
@@ -294,7 +294,7 @@
         <div class="dropzone" id="chatbotDrop">Drop PDF, DOCX, or TXT here</div>
 
         <div id="chatbotContainer" style="display:none; margin-top:10px;">
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <div class="tool-actions" style="margin-bottom:8px">
             <label class="muted small">Summary Style</label>
             <select id="summaryStyle">
               <option value="short">Short</option>
@@ -303,7 +303,7 @@
             </select>
           </div>
           <div id="chatWindow" style="height:300px; border:1px solid var(--muted); border-radius:8px; padding:10px; overflow-y:auto; background:var(--card); margin-bottom:10px;"></div>
-          <div style="display:flex; gap:8px;">
+          <div class="tool-actions">
             <input id="chatInput" placeholder="Type your message..." style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)">
             <button class="btn primary" id="sendBtn"><i class="fa-solid fa-paper-plane"></i> Send</button>
           </div>
@@ -313,7 +313,7 @@
       <!-- Create from Text -->
       <section class="tool" id="textpdf">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Create PDF from Text</strong><div class="muted">Write or paste text to generate a styled PDF</div></div></div>
+          <div class="tool-info"><strong>Create PDF from Text</strong><div class="muted">Write or paste text to generate a styled PDF</div></div>
           <div>
             <button class="btn" id="textSampleBtn"><i class="fa-solid fa-file-lines"></i> Insert Sample</button>
             <button class="btn primary" id="createTextPdf"><i class="fa-solid fa-file-arrow-down"></i> Generate PDF</button>
@@ -321,7 +321,7 @@
         </div>
 
         <textarea id="textToPdf" placeholder="Write your document here..."></textarea>
-        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+        <div class="tool-actions" style="margin-top:8px">
           <label class="muted small">Font size</label>
           <input type="number" id="textPdfSize" value="12" style="width:70px">
           <label class="muted small">Title</label>
@@ -332,7 +332,7 @@
       <!-- Images to PDF -->
       <section class="tool" id="imagespdf">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Create PDF from Images</strong><div class="muted">Upload images (drag & drop), reorder and export</div></div></div>
+          <div class="tool-info"><strong>Create PDF from Images</strong><div class="muted">Upload images (drag & drop), reorder and export</div></div>
           <div>
             <input id="imagesInput" type="file" accept="image/*" multiple style="display:none">
             <button class="btn" id="imagesChoose"><i class="fa-solid fa-images"></i> Choose Images</button>
@@ -347,7 +347,7 @@
       <!-- Watermark -->
       <section class="tool" id="watermark">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Watermark</strong><div class="muted">Add semi-transparent text watermark to every page</div></div></div>
+          <div class="tool-info"><strong>Add Watermark</strong><div class="muted">Add semi-transparent text watermark to every page</div></div>
           <div>
             <input id="wmInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="wmChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
@@ -367,7 +367,7 @@
       <!-- Reorder Pages -->
       <section class="tool" id="reorder">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Reorder Pages</strong><div class="muted">Drag thumbnails to reorder and export</div></div></div>
+          <div class="tool-info"><strong>Reorder Pages</strong><div class="muted">Drag thumbnails to reorder and export</div></div>
           <div>
             <input id="reorderInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="reorderChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -382,7 +382,7 @@
       <!-- Duplicate Pages -->
       <section class="tool" id="duplicate">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Duplicate Pages</strong><div class="muted">Select pages to duplicate and specify count</div></div></div>
+          <div class="tool-info"><strong>Duplicate Pages</strong><div class="muted">Select pages to duplicate and specify count</div></div>
           <div>
             <input id="duplicateInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="duplicateChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -403,7 +403,7 @@
       <!-- Add Blank Page -->
       <section class="tool" id="addblank">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Blank Page</strong><div class="muted">Insert a blank page at a chosen position</div></div></div>
+          <div class="tool-info"><strong>Add Blank Page</strong><div class="muted">Insert a blank page at a chosen position</div></div>
           <div>
             <input id="addblankInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="addblankChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -427,7 +427,7 @@
       <!-- Insert Pages from Another PDF -->
       <section class="tool" id="insertpages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Insert Pages from Another PDF</strong><div class="muted">Insert pages from a second PDF into the current one</div></div></div>
+          <div class="tool-info"><strong>Insert Pages from Another PDF</strong><div class="muted">Insert pages from a second PDF into the current one</div></div>
           <div>
             <input id="insertpagesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="insertpagesChoose"><i class="fa-solid fa-upload"></i> Upload Main PDF</button>
@@ -456,7 +456,7 @@
       <!-- Mix/Interleave Pages -->
       <section class="tool" id="mixpages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Mix/Interleave Pages</strong><div class="muted">Interleave pages from multiple PDFs in custom patterns</div></div></div>
+          <div class="tool-info"><strong>Mix/Interleave Pages</strong><div class="muted">Interleave pages from multiple PDFs in custom patterns</div></div>
           <div>
             <input id="mixpagesInput" type="file" accept="application/pdf" multiple style="display:none">
             <button class="btn" id="mixpagesChoose"><i class="fa-solid fa-folder-open"></i> Choose PDFs</button>
@@ -481,7 +481,7 @@
       <!-- Split by Bookmarks -->
       <section class="tool" id="splitbookmarks">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Split by Bookmarks</strong><div class="muted">Split PDF into multiple files based on top-level bookmarks</div></div></div>
+          <div class="tool-info"><strong>Split by Bookmarks</strong><div class="muted">Split PDF into multiple files based on top-level bookmarks</div></div>
           <div>
             <input id="splitbookmarksInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="splitbookmarksChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -500,7 +500,7 @@
       <!-- Split Every N Pages -->
       <section class="tool" id="splitn">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Split Every N Pages</strong><div class="muted">Split PDF into separate files every N pages</div></div></div>
+          <div class="tool-info"><strong>Split Every N Pages</strong><div class="muted">Split PDF into separate files every N pages</div></div>
           <div>
             <input id="splitnInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="splitnChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -521,7 +521,7 @@
       <!-- Compress PDF -->
       <section class="tool" id="compress">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Compress PDF (basic)</strong><div class="muted">Downscale images to reduce size (frontend-only)</div></div></div>
+          <div class="tool-info"><strong>Compress PDF (basic)</strong><div class="muted">Downscale images to reduce size (frontend-only)</div></div>
           <div>
             <input id="compressInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="compressChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -529,7 +529,7 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div class="tool-actions" style="align-items:center">
           <label class="muted small">Quality (scale)</label>
           <input id="compressScale" type="range" min="0.2" max="1" step="0.1" value="0.7">
           <span id="compressVal" class="muted">0.7</span>
@@ -541,7 +541,7 @@
       <!-- Rotate Pages -->
       <section class="tool" id="rotate">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Rotate Pages</strong><div class="muted">Rotate selected pages by 90, 180, or 270 degrees</div></div></div>
+          <div class="tool-info"><strong>Rotate Pages</strong><div class="muted">Rotate selected pages by 90, 180, or 270 degrees</div></div>
           <div>
             <input id="rotateInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="rotateChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -566,7 +566,7 @@
       <!-- Delete Pages -->
       <section class="tool" id="delete">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Delete Pages</strong><div class="muted">Remove specific pages from PDF</div></div></div>
+          <div class="tool-info"><strong>Delete Pages</strong><div class="muted">Remove specific pages from PDF</div></div>
           <div>
             <input id="deleteInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="deleteChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -585,7 +585,7 @@
       <!-- Extract Pages -->
       <section class="tool" id="extractpages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Extract Pages</strong><div class="muted">Extract specific pages into a new PDF</div></div></div>
+          <div class="tool-info"><strong>Extract Pages</strong><div class="muted">Extract specific pages into a new PDF</div></div>
           <div>
             <input id="extractPagesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="extractPagesChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -604,7 +604,7 @@
       <!-- Add Page Numbers -->
       <section class="tool" id="pagenumbers">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Page Numbers</strong><div class="muted">Add page numbers to each page</div></div></div>
+          <div class="tool-info"><strong>Add Page Numbers</strong><div class="muted">Add page numbers to each page</div></div>
           <div>
             <input id="pageNumbersInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="pageNumbersChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -632,7 +632,7 @@
       <!-- Add Custom Text -->
       <section class="tool" id="customtext">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Custom Text</strong><div class="muted">Add custom text or notes to pages</div></div></div>
+          <div class="tool-info"><strong>Add Custom Text</strong><div class="muted">Add custom text or notes to pages</div></div>
           <div>
             <input id="customTextInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="customTextChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -657,7 +657,7 @@
       <!-- Annotate -->
       <section class="tool" id="annotate">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Annotate PDF</strong><div class="muted">Add highlights, underlines, notes, and drawings</div></div></div>
+          <div class="tool-info"><strong>Annotate PDF</strong><div class="muted">Add highlights, underlines, notes, and drawings</div></div>
           <div>
             <input id="annotateInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="annotateChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -714,7 +714,7 @@
       <!-- Draw Shapes -->
       <section class="tool" id="shapes">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Draw Shapes</strong><div class="muted">Add rectangles, circles, arrows, lines to PDF</div></div></div>
+          <div class="tool-info"><strong>Draw Shapes</strong><div class="muted">Add rectangles, circles, arrows, lines to PDF</div></div>
           <div>
             <input id="shapesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="shapesChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -725,7 +725,7 @@
         <div class="dropzone" id="shapesDrop">Drop PDF here</div>
 
         <div id="shapesContainer" style="display:none; margin-top:10px;">
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <div class="tool-actions" style="margin-bottom:8px">
             <label class="muted small">Page</label>
             <select id="shapesPageSelect"></select>
             <div class="muted small">Shapes:</div>
@@ -750,7 +750,7 @@
       <!-- Fill Forms -->
       <section class="tool" id="fillforms">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Fill Forms</strong><div class="muted">Fill PDF form fields (text, checkboxes, radio buttons, dropdowns)</div></div></div>
+          <div class="tool-info"><strong>Fill Forms</strong><div class="muted">Fill PDF form fields (text, checkboxes, radio buttons, dropdowns)</div></div>
           <div>
             <input id="fillFormsInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="fillFormsChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -768,7 +768,7 @@
       <!-- Edit Metadata -->
       <section class="tool" id="metadata">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Edit Metadata</strong><div class="muted">Edit PDF title, author, subject, etc.</div></div></div>
+          <div class="tool-info"><strong>Edit Metadata</strong><div class="muted">Edit PDF title, author, subject, etc.</div></div>
           <div>
             <input id="metadataInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="metadataChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -788,7 +788,7 @@
       <!-- Password Protect -->
       <section class="tool" id="password">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Password Protect</strong><div class="muted">Add password protection to PDF</div></div></div>
+          <div class="tool-info"><strong>Password Protect</strong><div class="muted">Add password protection to PDF</div></div>
           <div>
             <input id="passwordInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="passwordChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -807,7 +807,7 @@
       <!-- Unlock PDF -->
       <section class="tool" id="unlock">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Unlock PDF</strong><div class="muted">Remove password protection</div></div></div>
+          <div class="tool-info"><strong>Unlock PDF</strong><div class="muted">Remove password protection</div></div>
           <div>
             <input id="unlockInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="unlockChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -826,7 +826,7 @@
       <!-- PDF to Images -->
       <section class="tool" id="pdftoimages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>PDF to Images</strong><div class="muted">Convert PDF pages to images</div></div></div>
+          <div class="tool-info"><strong>PDF to Images</strong><div class="muted">Convert PDF pages to images</div></div>
           <div>
             <input id="pdfToImagesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="pdfToImagesChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -850,7 +850,7 @@
       <!-- Extract Images -->
       <section class="tool" id="extractimages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Extract Images</strong><div class="muted">Extract embedded images from PDF</div></div></div>
+          <div class="tool-info"><strong>Extract Images</strong><div class="muted">Extract embedded images from PDF</div></div>
           <div>
             <input id="extractImagesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="extractImagesChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -861,7 +861,7 @@
         <div class="dropzone" id="extractImagesDrop">Drop PDF here</div>
 
         <div id="extractImagesContainer" style="display:none; margin-top:10px;">
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <div class="tool-actions" style="margin-bottom:8px">
             <button class="btn primary" id="extractImagesBtn">Extract Images</button>
             <button class="btn" id="downloadImagesZipBtn" style="display:none;">Download All as ZIP</button>
           </div>
@@ -872,7 +872,7 @@
       <!-- OCR -->
       <section class="tool" id="ocr">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>OCR (Optical Character Recognition)</strong><div class="muted">Extract text from images in PDF</div></div></div>
+          <div class="tool-info"><strong>OCR (Optical Character Recognition)</strong><div class="muted">Extract text from images in PDF</div></div>
           <div>
             <input id="ocrInput" type="file" accept="application/pdf,image/*" style="display:none">
             <button class="btn" id="ocrChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -887,7 +887,7 @@
       <!-- Add Signature -->
       <section class="tool" id="signature">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Signature</strong><div class="muted">Add digital signature to PDF</div></div></div>
+          <div class="tool-info"><strong>Add Signature</strong><div class="muted">Add digital signature to PDF</div></div>
           <div>
             <input id="signatureInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="signatureChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -908,7 +908,7 @@
       <!-- Search PDF -->
       <section class="tool" id="search">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Search PDF</strong><div class="muted">Search for text within PDF</div></div></div>
+          <div class="tool-info"><strong>Search PDF</strong><div class="muted">Search for text within PDF</div></div>
           <div>
             <input id="searchInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="searchChoose"><i class="fa-solid fa-upload"></i> Upload</button>
@@ -928,7 +928,7 @@
       <!-- Edit Images in PDF -->
       <section class="tool" id="editimages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Edit Images in PDF</strong><div class="muted">Resize, move, and manipulate embedded images</div></div></div>
+          <div class="tool-info"><strong>Edit Images in PDF</strong><div class="muted">Resize, move, and manipulate embedded images</div></div>
           <div>
             <input id="editImagesInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="editImagesChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
@@ -969,7 +969,7 @@
       <!-- Add Background Images -->
       <section class="tool" id="backgroundimages">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Background Images</strong><div class="muted">Add background images to PDF pages</div></div></div>
+          <div class="tool-info"><strong>Add Background Images</strong><div class="muted">Add background images to PDF pages</div></div>
           <div>
             <input id="backgroundImagesPdfInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="backgroundImagesPdfChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
@@ -1006,7 +1006,7 @@
       <!-- Add Stamps -->
       <section class="tool" id="stamps">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Add Stamps</strong><div class="muted">Add predefined stamps to PDF pages</div></div></div>
+          <div class="tool-info"><strong>Add Stamps</strong><div class="muted">Add predefined stamps to PDF pages</div></div>
           <div>
             <input id="stampsInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="stampsChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
@@ -1073,7 +1073,7 @@
       <!-- Multi-Signature -->
       <section class="tool" id="multisignature">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Multi-Signature</strong><div class="muted">Add multiple signatures to different pages or positions</div></div></div>
+          <div class="tool-info"><strong>Multi-Signature</strong><div class="muted">Add multiple signatures to different pages or positions</div></div>
           <div>
             <input id="multiSignatureInput" type="file" accept="application/pdf" style="display:none">
             <button class="btn" id="multiSignatureChoose"><i class="fa-solid fa-upload"></i> Upload PDF</button>
@@ -1111,13 +1111,13 @@
       <!-- Dashboard -->
       <section class="tool" id="dashboard">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Dashboard</strong><div class="muted">Analytics and performance metrics</div></div></div>
+          <div class="tool-info"><strong>Dashboard</strong><div class="muted">Analytics and performance metrics</div></div>
           <div>
             <button class="btn" id="refreshStats"><i class="fa-solid fa-refresh"></i> Refresh</button>
           </div>
         </div>
 
-        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div class="tool-actions" style="gap:20px;flex-wrap:wrap">
           <div style="flex:1; min-width:300px;">
             <canvas id="statsChart" width="400" height="200"></canvas>
           </div>
@@ -1131,21 +1131,21 @@
       <!-- Terminal Logs -->
       <section class="tool" id="logs">
         <div class="tool-header">
-          <div class="tool-info"><div><strong>Terminal Logs</strong><div class="muted">Real-time system logs and activity</div></div></div>
+          <div class="tool-info"><strong>Terminal Logs</strong><div class="muted">Real-time system logs and activity</div></div>
           <div>
             <button class="btn" id="clearLogs"><i class="fa-solid fa-trash"></i> Clear</button>
             <button class="btn" id="refreshLogs"><i class="fa-solid fa-refresh"></i> Refresh</button>
           </div>
         </div>
 
-        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div class="tool-actions" style="gap:20px;flex-wrap:wrap">
           <div style="flex:1; min-width:300px;">
             <div style="font-weight:600; margin-bottom:10px;">Live Logs</div>
             <div id="liveLogs" style="height:400px; overflow-y:auto; border:1px solid var(--muted); border-radius:8px; padding:10px; background:var(--card); font-family:monospace; font-size:12px;"></div>
           </div>
           <div style="flex:1; min-width:300px;">
             <div style="font-weight:600; margin-bottom:10px;">Log Filters</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+            <div class="tool-actions" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
               <label><input type="checkbox" id="filterSuccess" checked> Success</label>
               <label><input type="checkbox" id="filterError" checked> Errors</label>
               <label><input type="checkbox" id="filterInfo" checked> Info</label>
